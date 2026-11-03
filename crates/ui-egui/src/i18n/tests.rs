@@ -394,6 +394,24 @@ fn corrupt_catalog_data_is_an_error() {
     assert_eq!(tr(Lang(info), "Layer"), "Layer", "falls back to English");
 }
 
+#[test]
+fn catalog_inflate_matches_the_previous_reader_at_the_cap() {
+    use std::io::{Read, Write};
+    for size in [0usize, 1, 8193] {
+        let plain = "x".repeat(size);
+        let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(plain.as_bytes()).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut previous = String::new();
+        flate2::read::DeflateDecoder::new(compressed.as_slice()).take(MAX_CATALOG_BYTES + 1).read_to_string(&mut previous).unwrap();
+        assert_eq!(inflate(&compressed).unwrap(), previous);
+        assert!(inflate(&compressed[..compressed.len() - 1]).is_err());
+    }
+    let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&vec![b'x'; MAX_CATALOG_BYTES as usize + 1]).unwrap();
+    assert!(inflate(&encoder.finish().unwrap()).is_err());
+}
+
 /// Packed lines unpack to their keys; references to keys that don't exist are an error, not a
 /// panic.
 #[test]

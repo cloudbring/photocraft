@@ -13,7 +13,7 @@
 //! colour, un-premultiplied into straight alpha (HDR values are kept, not clamped) — because the flat document model has no
 //! per-pixel depth.
 
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::io::{Cursor, Seek, SeekFrom};
 
 use exr::meta::attribute::{LevelMode, SampleType as ExrSample};
 use exr::meta::{BlockDescription, MetaData};
@@ -187,7 +187,16 @@ fn decompress(compression: Compression, packed: &[u8], expected: usize, what: &s
             // `read_to_end`, whose doubling reserves past `expected`. Once `expected` bytes are
             // in, a one-byte read checks that the stream ends there.
             let malformed = || err(format!("{what}: zlib data is malformed"));
-            let mut zlib = flate2::bufread::ZlibDecoder::new(packed);
+            let mut zlib = craft_archive::BoundedInflate::new(
+                packed,
+                craft_archive::Limits {
+                    max_output: expected as u64,
+                    max_input: packed.len() as u64,
+                    max_ratio: u64::MAX,
+                    wrapper: craft_archive::Wrapper::Zlib,
+                },
+            )
+            .map_err(|_| malformed())?;
             let mut out = Vec::new();
             let mut filled = 0;
             while filled < expected {
@@ -196,14 +205,14 @@ fn decompress(compression: Compression, packed: &[u8], expected: usize, what: &s
                     reserve_up_to(&mut out, grow, expected, what)?;
                     out.resize(filled + grow, 0);
                 }
-                let n = zlib.read(out.get_mut(filled..).unwrap_or_default()).map_err(|_| malformed())?;
+                let n = zlib.read_chunk(out.get_mut(filled..).unwrap_or_default()).map_err(|_| malformed())?;
                 if n == 0 {
                     break;
                 }
                 filled += n;
             }
             out.truncate(filled);
-            if filled == expected && zlib.read(&mut [0u8; 1]).map_err(|_| malformed())? != 0 {
+            if filled == expected && zlib.read_chunk(&mut [0u8; 1]).map_err(|_| malformed())? != 0 {
                 return Err(err(format!("{what}: zlib data expands past {expected} bytes")));
             }
             if out.len() != expected {
@@ -756,6 +765,10 @@ mod tests {
             let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
             z.write_all(&p).expect("write to a Vec");
             let zips = z.finish().expect("finish a Vec");
+            let mut previous = Vec::new();
+            std::io::Read::read_to_end(&mut flate2::bufread::ZlibDecoder::new(zips.as_slice()), &mut previous).unwrap();
+            assert_eq!(previous, p);
+            assert_eq!(decompress(Compression::ZIP1, &zips, n, "the table").unwrap(), raw);
             assert!(decompress(Compression::ZIP1, &zips[..zips.len() - 1], n, "the table").is_err());
             // RLE: the first byte as a literal, then runs of up to 128 copies of the next.
             let mut rle = vec![0xFF, p[0]];

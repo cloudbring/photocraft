@@ -308,8 +308,12 @@ fn decode_tip_max(bytes: &[u8], max_side: u32) -> Result<GrayTile, String> {
         b => return Err(format!("unsupported tip depth {b}")),
     };
     let want = n * bytes_per;
-    let mut raw = Vec::with_capacity(want as usize);
-    flate2::read::ZlibDecoder::new(&bytes[TIP_HEADER..]).take(want + 1).read_to_end(&mut raw).map_err(|e| format!("tip data: {e}"))?;
+    let compressed = &bytes[TIP_HEADER..];
+    let raw = craft_archive::inflate_bounded(
+        compressed,
+        craft_archive::Limits { max_output: want, max_input: compressed.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Zlib },
+    )
+    .map_err(|e| format!("tip data: {e}"))?;
     if raw.len() as u64 != want {
         return Err(format!("tip data has {} bytes, expected {want}", raw.len()));
     }

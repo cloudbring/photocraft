@@ -19,6 +19,7 @@ avif = ["image/avif"]
 heif = ["dep:photocraft-heif"]
 
 [dependencies]
+craft-archive = { workspace = true }
 thiserror.workspace = true
 image = { workspace = true, features = ["gif", "bmp", "tga", "ico", "qoi", "hdr"] }
 png = "0.18"

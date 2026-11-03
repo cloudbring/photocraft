@@ -102,13 +102,19 @@ fn pixels(reader: &mut Reader<'_>, length: usize, ctl: &Interrupt<'_>) -> Result
         let end = start.checked_add(chunk_size.min(length.saturating_sub(start))).ok_or_else(|| invalid("pixel offset overflow"))?;
         let dst = data.get_mut(start..end).ok_or_else(|| invalid("invalid pixel chunk range"))?;
         if version == 0 {
-            let mut decoder = flate2::bufread::GzDecoder::new(raw);
+            let mut decoder = craft_archive::BoundedInflate::new(
+                raw,
+                craft_archive::Limits { max_output: dst.len() as u64, max_input: raw.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Gzip },
+            )
+            .map_err(|e| invalid(format!("invalid gzip pixel chunk: {e}")))?;
             for band in dst.chunks_mut(1 << 20) {
                 ctl.check().map_err(|_| IoError::Cancelled)?;
                 decoder.read_exact(band).map_err(|e| invalid(format!("invalid gzip pixel chunk: {e}")))?;
             }
             let mut extra = [0];
-            if decoder.read(&mut extra).map_err(|e| invalid(format!("invalid gzip pixel checksum: {e}")))? != 0 || !decoder.into_inner().is_empty() {
+            if decoder.read(&mut extra).map_err(|e| invalid(format!("invalid gzip pixel checksum: {e}")))? != 0
+                || decoder.accounting().bytes_in != raw.len() as u64
+            {
                 return Err(invalid("pixel chunk has excess data"));
             }
         } else {

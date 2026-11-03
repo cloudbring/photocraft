@@ -12,6 +12,7 @@ workspace = true
 corpus = []
 
 [dependencies]
+craft-archive = { workspace = true }
 photocraft-geom = { workspace = true }
 photocraft-color = { workspace = true }
 photocraft-cms = { workspace = true }

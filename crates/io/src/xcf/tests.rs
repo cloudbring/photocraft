@@ -3,6 +3,7 @@
 
 use super::*;
 use photocraft_raster::Interrupt;
+use std::io::Read as _;
 
 /// A small XCF writer for tests: version 11+ layout (64-bit pointers) by default.
 pub(super) struct W {
@@ -718,6 +719,9 @@ fn gzipped_files_are_recognised_by_name_and_inflated() {
     let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     e.write_all(&plain).unwrap();
     let gz = e.finish().unwrap();
+    let mut previous = Vec::new();
+    flate2::read::GzDecoder::new(gz.as_slice()).take(MAX_INFLATED as u64 + 1).read_to_end(&mut previous).unwrap();
+    assert_eq!(gunzip(&gz).unwrap(), previous);
     assert!(is_gzipped_xcf("a/b/photo.XCF.GZ", &gz) && is_gzipped_xcf("x.xcfgz", &gz));
     assert!(!is_gzipped_xcf("photo.xcf", &gz) && !is_gzipped_xcf("photo.xcf.gz", &plain));
     let d = crate::import("photo.xcf.gz", &gz).unwrap().document;

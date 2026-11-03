@@ -274,20 +274,21 @@ fn bounded_text(input: &[u8], compressed: bool, latin1: bool, limit: usize) -> R
         Ok(())
     };
     if compressed {
-        let mut decoder = flate2::Decompress::new(true);
+        let mut decoder = craft_archive::BoundedInflate::new(
+            input,
+            craft_archive::Limits { max_output: limit as u64, max_input: input.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Zlib },
+        )
+        .map_err(|_| text_limit())?;
         let mut scratch = [0; 8192];
         loop {
-            let start_in = decoder.total_in();
-            let start_out = decoder.total_out();
-            let Some(tail) = usize::try_from(start_in).ok().and_then(|at| input.get(at..)) else { return Ok(None) };
-            let Ok(status) = decoder.decompress(tail, &mut scratch, flate2::FlushDecompress::None) else { return Ok(None) };
-            let Some(batch) = usize::try_from(decoder.total_out() - start_out).ok().and_then(|len| scratch.get(..len)) else { return Ok(None) };
-            append(batch)?;
-            if status == flate2::Status::StreamEnd {
+            let count = match decoder.read_chunk(&mut scratch) {
+                Ok(count) => count,
+                Err(craft_archive::InflateError::OutputLimit { .. }) => return Err(text_limit()),
+                Err(_) => return Ok(None),
+            };
+            append(&scratch[..count])?;
+            if count == 0 {
                 break;
-            }
-            if start_in == decoder.total_in() && start_out == decoder.total_out() {
-                return Ok(None); // Truncated stream: never keep partial text.
             }
         }
     } else {
@@ -921,6 +922,29 @@ mod stereo_tests {
         let bytes = encode_indexed(2, 1, &[0, 1], &pal, None, None, Some(PngStereo::CrossFuse)).unwrap();
         assert_eq!(stereo(&bytes), Some(PngStereo::CrossFuse));
         assert_eq!(palette(&bytes).unwrap().map(|p| p.colors), Some(pal.to_vec()));
+    }
+}
+
+#[cfg(test)]
+mod compressed_text_tests {
+    use super::*;
+    use std::io::{Read, Write};
+
+    #[test]
+    fn text_inflate_matches_old_zlib_reader_and_respects_cap() {
+        for size in [0usize, 1, 32769] {
+            let text = "abc".repeat(size);
+            let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder.write_all(text.as_bytes()).unwrap();
+            let compressed = encoder.finish().unwrap();
+            let mut previous = Vec::new();
+            flate2::read::ZlibDecoder::new(compressed.as_slice()).read_to_end(&mut previous).unwrap();
+            assert_eq!(bounded_text(&compressed, true, false, previous.len()).unwrap(), Some(String::from_utf8(previous).unwrap()));
+            assert_eq!(bounded_text(&compressed[..compressed.len() - 1], true, false, text.len()).unwrap(), None);
+            if !text.is_empty() {
+                assert!(bounded_text(&compressed, true, false, text.len() - 1).is_err());
+            }
+        }
     }
 }
 

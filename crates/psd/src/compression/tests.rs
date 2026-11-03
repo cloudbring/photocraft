@@ -351,3 +351,28 @@ fn zip_bomb_is_bounded() {
 fn zip_garbage_errors() {
     assert!(zip_decompress(&[1, 2, 3, 4], 4).is_err());
 }
+
+#[test]
+fn zip_readers_match_the_previous_flate2_decoder() {
+    use std::io::Read;
+    for size in [0, 1, 7, 8192, 65537] {
+        let plain: Vec<_> = (0..size).map(|index| (index % 251) as u8).collect();
+        let compressed = zip_compress(&plain);
+        let mut previous = Vec::new();
+        flate2::read::ZlibDecoder::new(compressed.as_slice()).take(size as u64).read_to_end(&mut previous).unwrap();
+        assert_eq!(zip_decompress(&compressed, size).unwrap(), previous);
+        assert_eq!(inflate_checked(&compressed, size as u64, true).unwrap(), previous);
+        if compressed.len() > 2 && size > 0 {
+            assert!(inflate_checked(&compressed[..compressed.len() - 1], size as u64, true).is_err());
+        }
+    }
+}
+
+#[test]
+fn zip_validation_keeps_the_declared_size_padding_allowance() {
+    let expected = 1u64;
+    let at_cap = zip_compress(&vec![0; expected as usize + (1 << 20)]);
+    assert_eq!(inflate_checked(&at_cap, expected, true).unwrap(), vec![0]);
+    let above_cap = zip_compress(&vec![0; expected as usize + (1 << 20) + 1]);
+    assert!(matches!(inflate_checked(&above_cap, expected, false), Err(PsdError::LimitExceeded(_))));
+}

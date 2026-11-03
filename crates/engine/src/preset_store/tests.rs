@@ -73,6 +73,23 @@ fn tip_codec_round_trips_8_and_16_bit() {
 }
 
 #[test]
+fn tip_inflate_matches_the_previous_zlib_reader() {
+    use std::io::Read;
+    for tip in [tip8(3, 5, 0), tip16(64, 37, 4)] {
+        let encoded = encode_tip(&tip);
+        let mut previous = Vec::new();
+        flate2::read::ZlibDecoder::new(&encoded[TIP_HEADER..]).take((tip.width * tip.height * 2 + 1) as u64).read_to_end(&mut previous).unwrap();
+        let decoded = decode_tip(&encoded).unwrap();
+        assert_eq!(decoded, tip);
+        assert_eq!(previous.len(), (tip.width * tip.height) as usize * if encoded[6] == 8 { 1 } else { 2 });
+        assert!(decode_tip(&encoded[..encoded.len() - 1]).is_err());
+        let mut too_small = encoded.clone();
+        too_small[7..11].copy_from_slice(&(tip.width - 1).to_le_bytes());
+        assert!(decode_tip(&too_small).is_err());
+    }
+}
+
+#[test]
 fn tip_decoder_rejects_garbage() {
     let good = encode_tip(&tip16(16, 16, 1));
     for n in 0..good.len() {

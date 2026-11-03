@@ -142,16 +142,18 @@ const MAX_CATALOG_BYTES: u64 = 16 << 20;
 
 /// Inflate a catalog. Bad data gives an error (and the language falls back to English), never a panic.
 fn inflate(source: &[u8]) -> Result<String, String> {
-    use std::io::Read as _;
-    let mut text = String::new();
     if source.is_empty() {
-        return Ok(text);
+        return Ok(String::new());
     }
-    flate2::read::DeflateDecoder::new(source).take(MAX_CATALOG_BYTES + 1).read_to_string(&mut text).map_err(|e| e.to_string())?;
-    if text.len() as u64 > MAX_CATALOG_BYTES {
-        return Err(format!("over {MAX_CATALOG_BYTES} bytes"));
-    }
-    Ok(text)
+    let bytes = craft_archive::inflate_bounded(
+        source,
+        craft_archive::Limits { max_output: MAX_CATALOG_BYTES, max_input: source.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Raw },
+    )
+    .map_err(|e| match e {
+        craft_archive::InflateError::OutputLimit { .. } => format!("over {MAX_CATALOG_BYTES} bytes"),
+        other => other.to_string(),
+    })?;
+    String::from_utf8(bytes).map_err(|e| e.to_string())
 }
 
 /// Every catalog entry's `context<TAB>source`, stored once for all catalogs (build.rs).

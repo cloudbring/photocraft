@@ -765,16 +765,20 @@ fn inflate(bytes: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, IoError> {
 
 /// [`inflate`] with an explicit `limit`, which also applies to uncompressed input.
 fn inflate_with_limit(bytes: &[u8], limit: u64) -> Result<std::borrow::Cow<'_, [u8]>, IoError> {
-    use std::io::Read;
     if !bytes.starts_with(&[0x1f, 0x8b]) {
         if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > limit {
             return Err(IoError::Svg(format!("the SVG exceeds the {limit} byte limit")));
         }
         return Ok(std::borrow::Cow::Borrowed(bytes));
     }
-    let mut out = Vec::new();
-    let mut reader = flate2::bufread::MultiGzDecoder::new(bytes).take(limit.saturating_add(1));
-    reader.read_to_end(&mut out).map_err(|e| IoError::Svg(format!("the compressed SVG couldn't be inflated: {e}")))?;
+    let out = craft_archive::inflate_bounded(
+        bytes,
+        craft_archive::Limits { max_output: limit, max_input: bytes.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Gzip },
+    )
+    .map_err(|e| match e {
+        craft_archive::InflateError::OutputLimit { .. } => IoError::Svg(format!("the compressed SVG inflates past {} MB", limit >> 20)),
+        other => IoError::Svg(format!("the compressed SVG couldn't be inflated: {other}")),
+    })?;
     if u64::try_from(out.len()).unwrap_or(u64::MAX) > limit {
         return Err(IoError::Svg(format!("the compressed SVG inflates past {} MB", limit >> 20)));
     }

@@ -3,9 +3,9 @@
 //! unzipped and re-zipped by another tool still loads). No ZIP64, no
 //! encryption, no multi-disk archives.
 
+use craft_archive::{Limits, Wrapper, inflate_bounded};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::Read;
 
 use crate::FormatError;
 
@@ -126,7 +126,7 @@ pub struct Entry {
     method: u16,
     crc: u32,
     compressed: usize,
-    uncompressed: usize,
+    pub(crate) uncompressed: usize,
     data_offset: usize,
 }
 
@@ -234,6 +234,10 @@ impl<'a> ZipReader<'a> {
         self.by_name.get(name).and_then(|&i| self.entries.get(i))
     }
 
+    pub(crate) fn index(&self, name: &str) -> Option<usize> {
+        self.by_name.get(name).copied()
+    }
+
     /// Entry payload (decompressed), at most `max` bytes, CRC-checked.
     pub fn read(&self, e: &Entry, max: usize) -> Result<Vec<u8>, FormatError> {
         if e.uncompressed > max {
@@ -251,13 +255,14 @@ impl<'a> ZipReader<'a> {
                 // The uncompressed length comes from an untrusted ZIP header: a
                 // small forged archive must not reserve gigabytes up front, so the
                 // preallocation is capped (DEFLATE expands at most ~1032x).
-                let mut out = Vec::with_capacity(e.uncompressed.min(raw.len().saturating_mul(1032)).min(64 << 20));
-                // One surplus byte proves a false size without expanding to the caller's larger budget.
-                flate2::bufread::DeflateDecoder::new(raw)
-                    .take((e.uncompressed as u64).saturating_add(1))
-                    .read_to_end(&mut out)
-                    .map_err(|err| FormatError::corrupt(format!("zip entry `{}`: {err}", e.name)))?;
-                out
+                inflate_bounded(
+                    raw,
+                    Limits { max_output: (e.uncompressed as u64).saturating_add(1), max_input: raw.len() as u64, max_ratio: u64::MAX, wrapper: Wrapper::Raw },
+                )
+                .map_err(|err| match err {
+                    craft_archive::InflateError::OutputLimit { .. } => FormatError::corrupt(format!("zip entry `{}` has wrong size", e.name)),
+                    other => FormatError::corrupt(format!("zip entry `{}`: {other}", e.name)),
+                })?
             }
             m => {
                 return Err(FormatError::Unsupported(format!("zip compression method {m} for `{}`", e.name)));
@@ -281,6 +286,7 @@ impl<'a> ZipReader<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Read;
 
     #[test]
     fn crc_known_value() {
@@ -418,6 +424,21 @@ mod tests {
         assert_eq!(r.entries.len(), 3);
         assert_eq!(r.read_by_name("a", 100).unwrap(), b"first");
         assert_eq!(r.read_by_name("b", 100).unwrap(), b"other");
+    }
+
+    #[test]
+    fn document_zip_guard_rejects_unsafe_paths_and_keeps_entry_caps() {
+        use crate::store::{ByteSource, ZipSource};
+        let mut writer = ZipWriter::new();
+        writer.add("../outside", b"x").unwrap();
+        assert!(ZipSource::new(&writer.finish().unwrap()).is_err());
+
+        let mut writer = ZipWriter::new();
+        writer.add("manifest.json", b"content").unwrap();
+        let bytes = writer.finish().unwrap();
+        let source = ZipSource::new(&bytes).unwrap();
+        assert!(matches!(source.get("manifest.json", 6), Err(FormatError::LimitExceeded(_))));
+        assert_eq!(source.get("manifest.json", 7).unwrap(), b"content");
     }
 
     /// Reservation changes neither entry bytes nor final output, and avoids growth.

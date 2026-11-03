@@ -10,6 +10,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+craft-archive = { workspace = true }
 photocraft-geom = { workspace = true }
 photocraft-color = { workspace = true }
 photocraft-raster = { workspace = true }
@@ -22,6 +23,7 @@ thiserror = { workspace = true }
 flate2 = { workspace = true }
 # Same IEEE CRC-32 the ZIP container needs; already in Cargo.lock through flate2.
 crc32fast = "1.5"
+zip = { version = "9", default-features = false, features = ["deflate"] }
 blake3 = { version = "1.8", default-features = false, features = ["pure"] }
 ruzstd = "0.9.1"
 

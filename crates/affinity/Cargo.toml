@@ -14,6 +14,7 @@ workspace = true
 synth = []
 
 [dependencies]
+craft-archive = { workspace = true }
 crc32fast = "1.5"
 flate2 = { workspace = true }
 ruzstd = "0.9.1"

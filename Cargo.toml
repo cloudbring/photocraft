@@ -10,6 +10,7 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.95"
 
 [workspace.dependencies]
+craft-archive = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/integration" } # TODO: repoint to immutable craft-libs revision after integration.
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "c5a1cbfb5f9049f9270955caffb5bee5997aebf7", features = ["serde"] }
 # internal
 photocraft-geom = { path = "crates/geom" }

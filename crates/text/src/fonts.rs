@@ -51,12 +51,16 @@ const MAX_BUNDLED_FONT_BYTES: u64 = 16 << 20;
 /// Inflate a bundled font. Data that doesn't inflate gives no font (empty bytes, which every
 /// consumer skips), never a panic; `bundled_fonts_inflate_to_their_files` keeps it from happening.
 fn inflate_font(deflated: &[u8]) -> Vec<u8> {
-    use std::io::Read as _;
-    let mut out = Vec::new();
-    match flate2::read::DeflateDecoder::new(deflated).take(MAX_BUNDLED_FONT_BYTES + 1).read_to_end(&mut out) {
-        Ok(_) if out.len() as u64 <= MAX_BUNDLED_FONT_BYTES => out,
-        _ => Vec::new(),
-    }
+    craft_archive::inflate_bounded(
+        deflated,
+        craft_archive::Limits {
+            max_output: MAX_BUNDLED_FONT_BYTES,
+            max_input: deflated.len() as u64,
+            max_ratio: u64::MAX,
+            wrapper: craft_archive::Wrapper::Raw,
+        },
+    )
+    .unwrap_or_default()
 }
 
 /// Families tried (if installed) after the requested one, for missing glyphs. The Southeast Asian
@@ -1084,6 +1088,25 @@ mod tests {
         assert!(super::inflate_font(b"").is_empty());
         let mut db = super::FontDb::new();
         assert!(db.register_font_data(super::inflate_font(b"\x00garbage")).is_empty());
+    }
+
+    #[test]
+    fn bundled_font_inflate_matches_the_previous_reader_at_the_cap() {
+        use super::{MAX_BUNDLED_FONT_BYTES, inflate_font};
+        use std::io::{Read, Write};
+        for size in [0usize, 1, 8193] {
+            let plain = vec![42u8; size];
+            let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder.write_all(&plain).unwrap();
+            let compressed = encoder.finish().unwrap();
+            let mut previous = Vec::new();
+            flate2::read::DeflateDecoder::new(compressed.as_slice()).take(MAX_BUNDLED_FONT_BYTES + 1).read_to_end(&mut previous).unwrap();
+            assert_eq!(inflate_font(&compressed), previous);
+            assert!(inflate_font(&compressed[..compressed.len() - 1]).is_empty());
+        }
+        let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&vec![0; MAX_BUNDLED_FONT_BYTES as usize + 1]).unwrap();
+        assert!(inflate_font(&encoder.finish().unwrap()).is_empty());
     }
 
     fn names(v: &[(&str, Option<&str>)]) -> Vec<(String, Option<String>)> {

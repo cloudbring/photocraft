@@ -18,7 +18,6 @@
 mod tests;
 
 use std::collections::HashMap;
-use std::io::Read;
 use std::sync::Arc;
 
 use photocraft_codecs::f16;
@@ -75,13 +74,14 @@ pub(crate) fn is_gzipped_xcf(name: &str, bytes: &[u8]) -> bool {
 
 /// Inflates a gzipped XCF, bounded.
 pub(crate) fn gunzip(bytes: &[u8]) -> Result<Vec<u8>> {
-    let mut out = Vec::new();
-    let mut dec = flate2::read::GzDecoder::new(bytes).take(MAX_INFLATED as u64 + 1);
-    dec.read_to_end(&mut out).map_err(|e| invalid(format!("gzip: {e}")))?;
-    if out.len() > MAX_INFLATED {
-        return Err(invalid("the compressed file inflates past the 1 GiB limit"));
-    }
-    Ok(out)
+    craft_archive::inflate_bounded(
+        bytes,
+        craft_archive::Limits { max_output: MAX_INFLATED as u64, max_input: bytes.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Gzip },
+    )
+    .map_err(|e| match e {
+        craft_archive::InflateError::OutputLimit { .. } => invalid("the compressed file inflates past the 1 GiB limit"),
+        other => invalid(format!("gzip: {other}")),
+    })
 }
 
 /// How samples are stored: bytes per sample, whether they are floats, and whether the values are
@@ -336,8 +336,16 @@ fn decode_tile(c: &Cursor<'_>, at: usize, end: usize, compression: Compression, 
     match compression {
         Compression::None => input.get(..expected).map(<[u8]>::to_vec).ok_or_else(|| invalid("an uncompressed tile is cut short")),
         Compression::Zlib => {
-            let mut out = Vec::with_capacity(expected);
-            flate2::read::ZlibDecoder::new(input).take(expected as u64).read_to_end(&mut out).map_err(|e| invalid(format!("zlib tile: {e}")))?;
+            let out = craft_archive::inflate_bounded(
+                input,
+                craft_archive::Limits {
+                    max_output: expected as u64,
+                    max_input: input.len() as u64,
+                    max_ratio: u64::MAX,
+                    wrapper: craft_archive::Wrapper::Zlib,
+                },
+            )
+            .map_err(|e| invalid(format!("zlib tile: {e}")))?;
             if out.len() != expected {
                 return Err(invalid("a zlib tile is cut short"));
             }

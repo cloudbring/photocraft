@@ -1,6 +1,7 @@
 //! The Affinity archive: header, the chain of file allocation tables (one per save) and
 //! bounded, CRC-checked extraction of named entries such as `doc.dat` and raster tiles.
 
+use craft_archive::{Limits as InflateLimits, Wrapper, inflate_bounded};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 
@@ -332,7 +333,14 @@ fn read_bounded(mut r: impl Read, size: usize) -> Result<Vec<u8>, Error> {
 }
 
 fn inflate(data: &[u8], size: usize) -> Result<Vec<u8>, Error> {
-    read_bounded(flate2::bufread::ZlibDecoder::new(data), size)
+    inflate_bounded(
+        data,
+        InflateLimits { max_output: (size as u64).saturating_add(1), max_input: data.len() as u64, max_ratio: u64::MAX, wrapper: Wrapper::Zlib },
+    )
+    .map_err(|error| match error {
+        craft_archive::InflateError::OutputLimit { .. } => Error::Malformed("archive entry size mismatch"),
+        _ => Error::Malformed("corrupt compressed entry"),
+    })
 }
 
 fn unzstd(data: &[u8], size: usize) -> Result<Vec<u8>, Error> {
@@ -392,5 +400,28 @@ fn byte_delta(b: &mut [u8]) {
     for v in b {
         *v = v.wrapping_add(prev);
         prev = *v;
+    }
+}
+
+#[cfg(test)]
+mod inflate_tests {
+    use super::*;
+    use std::io::{Read, Write};
+
+    #[test]
+    fn zlib_entry_matches_the_previous_bounded_reader() {
+        for size in [1usize, 256, 8193] {
+            let plain: Vec<_> = (0..size).map(|index| (index % 227) as u8).collect();
+            let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder.write_all(&plain).unwrap();
+            let compressed = encoder.finish().unwrap();
+            let mut previous = Vec::new();
+            flate2::bufread::ZlibDecoder::new(compressed.as_slice()).take(size as u64 + 1).read_to_end(&mut previous).unwrap();
+            assert_eq!(inflate(&compressed, size).unwrap(), previous);
+            assert_eq!(inflate(&compressed, size - 1).unwrap().len(), size);
+            if size > 1 {
+                assert!(inflate(&compressed, size - 2).is_err());
+            }
+        }
     }
 }

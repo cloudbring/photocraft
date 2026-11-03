@@ -29,12 +29,11 @@ const MAX_FONT_BYTES: u64 = 16 << 20;
 
 /// Inflate a font. Data that doesn't inflate gives empty bytes (the font is left out), never a panic.
 fn inflate(deflated: &[u8]) -> Vec<u8> {
-    use std::io::Read as _;
-    let mut out = Vec::new();
-    match flate2::read::DeflateDecoder::new(deflated).take(MAX_FONT_BYTES + 1).read_to_end(&mut out) {
-        Ok(_) if out.len() as u64 <= MAX_FONT_BYTES => out,
-        _ => Vec::new(),
-    }
+    craft_archive::inflate_bounded(
+        deflated,
+        craft_archive::Limits { max_output: MAX_FONT_BYTES, max_input: deflated.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Raw },
+    )
+    .unwrap_or_default()
 }
 
 /// `FontDefinitions::default()` with egui's default fonts, whether or not egui was built with
@@ -76,6 +75,25 @@ fn from_deflated() -> FontDefinitions {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::io::{Read, Write};
+
+    #[test]
+    fn default_font_inflate_matches_the_previous_reader_and_rejects_overflow() {
+        for size in [0usize, 1, 8193] {
+            let plain = vec![42u8; size];
+            let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+            encoder.write_all(&plain).unwrap();
+            let compressed = encoder.finish().unwrap();
+            let mut previous = Vec::new();
+            flate2::read::DeflateDecoder::new(compressed.as_slice()).take(MAX_FONT_BYTES + 1).read_to_end(&mut previous).unwrap();
+            assert_eq!(inflate(&compressed), previous);
+            assert!(inflate(&compressed[..compressed.len() - 1]).is_empty());
+        }
+        let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&vec![42; MAX_FONT_BYTES as usize + 1]).unwrap();
+        assert!(inflate(&encoder.finish().unwrap()).is_empty());
+    }
 
     /// The definitions built from the deflated copies are egui's own: the same bytes, tweaks and
     /// family order (test builds enable `default_fonts`, so `FontDefinitions::default()` is egui's).

@@ -1,6 +1,28 @@
 use super::*;
 use std::io::Write;
 
+#[test]
+fn gzip_pixel_chunk_matches_the_previous_reader() {
+    use std::io::Read;
+    for size in [0usize, 4, 1 << 20] {
+        let plain = vec![127u8; size];
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&plain).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut previous = vec![0; size];
+        flate2::bufread::GzDecoder::new(compressed.as_slice()).read_exact(&mut previous).unwrap();
+        let mut reader = craft_archive::BoundedInflate::new(
+            compressed.as_slice(),
+            craft_archive::Limits { max_output: size as u64, max_input: compressed.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Gzip },
+        )
+        .unwrap();
+        let mut output = vec![0; size];
+        reader.read_exact(&mut output).unwrap();
+        assert_eq!(output, previous);
+        assert_eq!(reader.read(&mut [0; 1]).unwrap(), 0);
+    }
+}
+
 enum Field {
     Int(i32),
     Long(i64),

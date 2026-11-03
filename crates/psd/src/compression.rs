@@ -4,7 +4,8 @@
 //! order: `planes × height × row_bytes` where `row_bytes` depends on depth
 //! (depth 1 packs 8 pixels per byte, MSB first).
 
-use std::io::{Read, Write};
+use craft_archive::{BoundedInflate, Limits, Wrapper};
+use std::io::Write;
 
 use crate::error::{PsdError, Result};
 use crate::header::{Version, row_bytes};
@@ -314,33 +315,30 @@ fn inflate_checked(data: &[u8], expected: u64, keep: bool) -> Result<Vec<u8>> {
     const OOM: PsdError = PsdError::OutOfMemory("not enough memory for the decoded channel data");
     #[cfg(test)]
     INFLATES.with(|n| n.set(n.get() + 1));
-    let mut decoder = flate2::Decompress::new(true);
+    let cap = expected.saturating_add(1 << 20);
+    let mut decoder = BoundedInflate::new(data, Limits { max_output: cap, max_input: data.len() as u64, max_ratio: u64::MAX, wrapper: Wrapper::Zlib })
+        .map_err(|e| PsdError::Decompress(e.to_string()))?;
     let mut out = Vec::new();
     if keep {
         out.try_reserve_exact(expected.min(data.len().saturating_mul(1032) as u64) as usize).map_err(|_| OOM)?;
     }
     let mut buf = vec![0; expected.saturating_add(1).clamp(8192, 1 << 20) as usize];
     loop {
-        let before = (decoder.total_in(), decoder.total_out());
-        let input = data.get(before.0 as usize..).ok_or_else(|| PsdError::Decompress("zlib input overflow".into()))?;
-        let status = decoder.decompress(input, &mut buf, flate2::FlushDecompress::None).map_err(|e| PsdError::Decompress(e.to_string()))?;
-        let got = decoder.total_out();
-        if got > expected.saturating_add(1 << 20) {
-            return Err(PsdError::LimitExceeded("zlib output exceeds the declared size and padding allowance"));
-        }
+        let n = decoder.read_chunk(&mut buf).map_err(|e| match e {
+            craft_archive::InflateError::OutputLimit { .. } => PsdError::LimitExceeded("zlib output exceeds the declared size and padding allowance"),
+            other => PsdError::Decompress(other.to_string()),
+        })?;
+        let got = decoder.accounting().bytes_out;
         if keep {
-            let n = (got - before.1).min(expected.saturating_sub(out.len() as u64)) as usize;
-            out.try_reserve(n).map_err(|_| OOM)?;
-            out.extend_from_slice(buf.get(..n).ok_or_else(|| PsdError::Decompress("zlib output overflow".into()))?);
+            let kept = n.min(expected.saturating_sub(out.len() as u64) as usize);
+            out.try_reserve(kept).map_err(|_| OOM)?;
+            out.extend_from_slice(&buf[..kept]);
         }
-        if status == flate2::Status::StreamEnd {
+        if n == 0 {
             if got < expected {
                 return Err(PsdError::Decompress(format!("zlib stream produced {got} of {expected} bytes")));
             }
             return Ok(out);
-        }
-        if before == (decoder.total_in(), got) {
-            return Err(PsdError::Decompress("incomplete zlib stream".into()));
         }
     }
 }
@@ -452,16 +450,20 @@ pub fn zip_compress(data: &[u8]) -> Vec<u8> {
 pub fn zip_decompress(data: &[u8], expected: usize) -> Result<Vec<u8>> {
     const OOM: PsdError = PsdError::OutOfMemory("not enough memory for the decoded channel data");
     const CHUNK: usize = 1 << 20;
-    let mut dec = flate2::read::ZlibDecoder::new(data).take(u64::try_from(expected).unwrap_or(u64::MAX));
+    let mut dec = BoundedInflate::new(data, Limits { max_output: expected as u64, max_input: data.len() as u64, max_ratio: u64::MAX, wrapper: Wrapper::Zlib })
+        .map_err(|e| PsdError::Decompress(e.to_string()))?;
     let mut out = Vec::new();
     // Deflate expands at most ~1032:1, so this is the most a valid stream can need.
     out.try_reserve_exact(expected.min(data.len().saturating_mul(1032))).map_err(|_| OOM)?;
     let mut buf = vec![0u8; CHUNK.min(expected).max(1)];
     loop {
-        let n = match dec.read(&mut buf) {
+        if out.len() == expected {
+            break;
+        }
+        let available = buf.len().min(expected - out.len());
+        let n = match dec.read_chunk(&mut buf[..available]) {
             Ok(0) => break,
             Ok(n) => n,
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e) => return Err(PsdError::Decompress(e.to_string())),
         };
         let chunk = buf.get(..n).ok_or_else(|| PsdError::Decompress("zlib reader overran its buffer".into()))?;

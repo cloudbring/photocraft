@@ -1,5 +1,22 @@
 use super::*;
 
+#[test]
+fn svgz_matches_the_previous_multi_gzip_reader() {
+    use std::io::{Read, Write};
+    for size in [0usize, 1, 8193] {
+        let plain = b"<svg/>".repeat(size);
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&plain).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let mut previous = Vec::new();
+        flate2::bufread::MultiGzDecoder::new(compressed.as_slice()).take(plain.len() as u64 + 1).read_to_end(&mut previous).unwrap();
+        assert_eq!(inflate_with_limit(&compressed, plain.len() as u64).unwrap().as_ref(), previous);
+        if !plain.is_empty() {
+            assert!(inflate_with_limit(&compressed, plain.len() as u64 - 1).is_err());
+        }
+    }
+}
+
 fn embedded_image(mime: &str, bytes: &[u8]) -> String {
     let data = bytes.iter().map(|byte| format!("%{byte:02X}")).collect::<String>();
     format!("<image width=\"1\" height=\"1\" href=\"data:{mime},{data}\"/>")

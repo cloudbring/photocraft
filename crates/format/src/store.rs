@@ -172,17 +172,38 @@ pub trait ByteSource {
 
 pub(crate) struct ZipSource<'a> {
     zip: ZipReader<'a>,
+    guard: std::cell::RefCell<craft_archive::ZipGuard<std::io::Cursor<&'a [u8]>>>,
 }
 
 impl<'a> ZipSource<'a> {
     pub fn new(bytes: &'a [u8]) -> Result<Self> {
-        Ok(ZipSource { zip: ZipReader::new(bytes)? })
+        let archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|error| FormatError::corrupt(format!("zip: {error}")))?;
+        let guard = craft_archive::ZipGuard::new(
+            archive,
+            craft_archive::ZipLimits { max_entries: u16::MAX as usize, max_entry_bytes: u32::MAX as u64, max_total_bytes: u64::MAX },
+        )
+        .map_err(|error| FormatError::corrupt(format!("zip: {error}")))?;
+        Ok(ZipSource { zip: ZipReader::new(bytes)?, guard: std::cell::RefCell::new(guard) })
     }
 }
 
 impl ByteSource for ZipSource<'_> {
     fn get(&self, path: &str, max: usize) -> Result<Vec<u8>> {
-        self.zip.read_by_name(path, max)
+        let index = self.zip.index(path).ok_or_else(|| FormatError::corrupt(format!("missing `{path}`")))?;
+        let entry = &self.zip.entries[index];
+        if entry.uncompressed > max {
+            return Err(FormatError::LimitExceeded(format!("zip entry `{}` is {} bytes (max {max})", entry.name, entry.uncompressed)));
+        }
+        let result = self
+            .guard
+            .try_borrow_mut()
+            .map_err(|_| FormatError::corrupt("zip reader is busy"))?
+            .read_entry(index)
+            .map_err(|error| FormatError::corrupt(format!("zip entry `{path}`: {error}")))?;
+        if result.len() != entry.uncompressed {
+            return Err(FormatError::corrupt(format!("zip entry `{path}` has wrong size")));
+        }
+        Ok(result)
     }
 }
 

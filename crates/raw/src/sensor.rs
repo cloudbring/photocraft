@@ -220,14 +220,11 @@ pub(crate) const JPEG_XL: u32 = 52546;
 /// Inflates one zlib tile into at most `need` bytes. The stream must run to its end: a truncated
 /// stream, or one that holds more than `need` bytes, is an error rather than a silent cut-off.
 fn inflate_tile(src: &[u8], need: usize) -> Result<Vec<u8>> {
-    let mut out = vec![0u8; need];
-    let mut d = flate2::Decompress::new(true);
-    let status = d.decompress(src, &mut out, flate2::FlushDecompress::Finish).map_err(|_| RawError::malformed("deflate tile does not decompress"))?;
-    if status != flate2::Status::StreamEnd {
-        return Err(RawError::malformed("deflate tile is truncated or larger than its tile"));
-    }
-    out.truncate(usize::try_from(d.total_out()).unwrap_or(need).min(need));
-    Ok(out)
+    craft_archive::inflate_bounded(
+        src,
+        craft_archive::Limits { max_output: need as u64, max_input: src.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Zlib },
+    )
+    .map_err(|_| RawError::malformed("deflate tile is truncated or larger than its tile"))
 }
 
 /// Reads the (uncompressed, deflate, lossless-JPEG, lossy-JPEG or JPEG XL) image of a raw IFD.
@@ -722,6 +719,19 @@ mod tests {
         assert!(inflate_tile(&z[..z.len() - 6], 64).is_err());
         // More decoded output than the tile holds.
         assert!(inflate_tile(&z, 32).is_err());
+    }
+
+    #[test]
+    fn deflate_tile_matches_previous_fixed_buffer_decoder() {
+        for size in [0usize, 1, 128, 8192, 32769] {
+            let plain: Vec<_> = (0..size).map(|index| (index % 193) as u8).collect();
+            let compressed = zlib(&plain);
+            let mut previous = vec![0; size];
+            let mut old = flate2::Decompress::new(true);
+            assert_eq!(old.decompress(&compressed, &mut previous, flate2::FlushDecompress::Finish).unwrap(), flate2::Status::StreamEnd);
+            previous.truncate(old.total_out() as usize);
+            assert_eq!(inflate_tile(&compressed, size).unwrap(), previous);
+        }
     }
 
     #[test]

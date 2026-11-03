@@ -10,7 +10,6 @@
 //! are skipped.
 
 use std::collections::{HashMap, HashSet};
-use std::io::Read;
 use std::sync::OnceLock;
 
 static WORDS_GZ: &[u8] = include_bytes!("../../../assets/dict/en_US-scowl-50.txt.gz");
@@ -39,8 +38,13 @@ impl Dictionary {
     pub fn english() -> &'static Dictionary {
         static D: OnceLock<Dictionary> = OnceLock::new();
         D.get_or_init(|| {
-            let mut s = String::new();
-            let _ = flate2::read::GzDecoder::new(WORDS_GZ).read_to_string(&mut s);
+            let s = craft_archive::inflate_bounded(
+                WORDS_GZ,
+                craft_archive::Limits { max_output: u64::MAX, max_input: WORDS_GZ.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Gzip },
+            )
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .unwrap_or_default();
             Dictionary::from_list(&s)
         })
     }
@@ -260,6 +264,26 @@ fn distance(a: &[char], b: &[char], max: usize, rows: &mut Rows) -> Option<usize
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bundled_dictionary_gzip_matches_previous_reader() {
+        use std::io::Read;
+        let mut previous = String::new();
+        flate2::read::GzDecoder::new(WORDS_GZ).read_to_string(&mut previous).unwrap();
+        let current = craft_archive::inflate_bounded(
+            WORDS_GZ,
+            craft_archive::Limits { max_output: u64::MAX, max_input: WORDS_GZ.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Gzip },
+        )
+        .unwrap();
+        assert_eq!(current, previous.as_bytes());
+        assert!(
+            craft_archive::inflate_bounded(
+                &WORDS_GZ[..WORDS_GZ.len() - 1],
+                craft_archive::Limits { max_output: u64::MAX, max_input: WORDS_GZ.len() as u64, max_ratio: u64::MAX, wrapper: craft_archive::Wrapper::Gzip }
+            )
+            .is_err()
+        );
+    }
 
     fn none() -> HashSet<String> {
         HashSet::new()
