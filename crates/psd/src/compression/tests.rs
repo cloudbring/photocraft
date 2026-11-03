@@ -383,17 +383,32 @@ proptest::proptest! {
         let mut encoded = Vec::new();
         for count in &counts { encoded.extend_from_slice(&count.to_be_bytes()); }
         encoded.extend_from_slice(&payload);
-        if counts.iter().map(|count| usize::from(*count)).sum::<usize>() != payload.len() {
+        if counts.iter().map(|count| usize::from(*count)).sum::<usize>() > payload.len() {
             proptest::prop_assert!(decode_planes(Compression::Rle, &encoded, &layout).is_err());
         }
     }
 }
 
 #[test]
-fn rle_rejects_invalid_tables_and_trailing_data() {
+fn rle_rejects_invalid_tables() {
     let layout = layout(1, 1, 2, 8, Version::Psd);
-    for data in [&[0, 2, 0][..], &[0, 2, 0, 3, 0, 7, 0, 8][..], &[0, 2, 0, 2, 0, 7, 0, 8, 9][..]] {
+    for data in [&[0, 2, 0][..], &[0, 2, 0, 3, 0, 7, 0, 8][..]] {
         assert!(decode_planes(Compression::Rle, data, &layout).is_err());
+    }
+}
+
+#[test]
+fn rle_accepts_trailing_padding() {
+    for version in [Version::Psd, Version::Psb] {
+        for (width, height) in [(1, 2), (1024, 1024)] {
+            let layout = layout(1, width, height, 8, version);
+            let pixels: Vec<u8> = (0..width * height).map(|index| (index / 8) as u8).collect();
+            let mut encoded = encode_planes(Compression::Rle, &pixels, &layout).unwrap();
+            let unpadded = decode_planes(Compression::Rle, &encoded, &layout).unwrap();
+            encoded.extend_from_slice(&[0, 0xff, 0x80]);
+            assert_eq!(decode_planes(Compression::Rle, &encoded, &layout).unwrap(), unpadded);
+            assert_eq!(unpadded, pixels);
+        }
     }
 }
 

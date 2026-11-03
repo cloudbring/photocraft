@@ -421,9 +421,6 @@ fn decode_rle(data: &[u8], layout: &PlaneLayout, total: usize) -> Result<Vec<u8>
             return Err(PsdError::UnexpectedEof { offset: r.pos() + start, needed: end - packed.len() });
         }
     }
-    if offset != packed.len() {
-        return Err(PsdError::Invalid("RLE row counts do not match channel data length".into()));
-    }
     // Up to MAX_DECODED_BYTES: report a machine without that much memory instead of aborting.
     let mut out = Vec::new();
     out.try_reserve_exact(total).map_err(|_| PsdError::OutOfMemory("not enough memory for the decoded channel data"))?;
