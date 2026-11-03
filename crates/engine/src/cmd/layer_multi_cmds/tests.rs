@@ -402,7 +402,7 @@ fn clipped_adjustment_in_pass_through_clip_base_damages_its_group() {
 fn duplicate_shares_tiles_and_damages_only_the_copy() {
     let render = |s: &Session| photocraft_compose::render(doc(s), doc(s).bounds());
     let tiles =
-        |s: &Session, id: LayerId| doc(s).layer(id).unwrap().surface().unwrap().tiles().map(|(c, t)| (*c, std::sync::Arc::as_ptr(t))).collect::<Vec<_>>();
+        |s: &Session, id: LayerId| doc(s).layer(id).unwrap().surface().unwrap().tiles().map(|(c, t)| (c, std::sync::Arc::as_ptr(t))).collect::<Vec<_>>();
     for depth in [8, 16, 32] {
         let mut s = session(depth);
         let a = rect_layer(&mut s, Rect::new(10, 10, 20, 20));

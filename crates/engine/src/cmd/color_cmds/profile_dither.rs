@@ -65,9 +65,9 @@ fn sparse(s: &Surface) -> bool {
 /// plus every stored tile.
 fn dither_tiles(s: &Surface, bounds: Rect) -> Vec<TileCoord> {
     if sparse(s) {
-        return s.tiles().map(|(c, _)| *c).collect();
+        return s.tiles().map(|(c, _)| c).collect();
     }
-    let outside = s.tiles().map(|(c, _)| *c).filter(|c| !in_canvas_tiles(*c, bounds));
+    let outside = s.tiles().map(|(c, _)| c).filter(|c| !in_canvas_tiles(*c, bounds));
     bounds.tiles().chain(outside).collect()
 }
 
@@ -75,8 +75,8 @@ fn dither_tiles(s: &Surface, bounds: Rect) -> Vec<TileCoord> {
 fn output_bytes(s: &Surface, to: PixelFormat, bounds: Rect) -> Result<u128> {
     let mut count = if sparse(s) { 0 } else { u128::from(bounds.tile_count()) };
     for (c, _) in s.tiles() {
-        tile_origin(*c)?;
-        if sparse(s) || !in_canvas_tiles(*c, bounds) {
+        tile_origin(c)?;
+        if sparse(s) || !in_canvas_tiles(c, bounds) {
             count = count.checked_add(1).ok_or_else(|| bad("dither output size overflowed"))?;
         }
     }

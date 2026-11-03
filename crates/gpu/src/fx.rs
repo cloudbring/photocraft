@@ -461,7 +461,7 @@ pub(crate) fn paste(shape: &mut [f32], region: Rect, r: Rect, v: &[f32]) {
 pub(crate) type Tiles = HashMap<TileCoord, std::sync::Weak<Tile>>;
 
 pub(crate) fn snapshot(s: &Surface) -> Tiles {
-    s.tiles().map(|(c, t)| (*c, Arc::downgrade(t))).collect()
+    s.tiles().map(|(c, t)| (c, Arc::downgrade(t))).collect()
 }
 
 /// Union of the tiles that differ between `old` and `s`.
@@ -469,7 +469,7 @@ pub(crate) fn damage(old: &Tiles, s: &Surface) -> Rect {
     let mut d = Rect::EMPTY;
     let mut add = |r: Rect| d = if d.is_empty() { r } else { d.union(&r) };
     for (c, t) in s.tiles() {
-        if old.get(c).is_none_or(|o| !std::ptr::eq(o.as_ptr(), Arc::as_ptr(t))) {
+        if old.get(&c).is_none_or(|o| !std::ptr::eq(o.as_ptr(), Arc::as_ptr(t))) {
             add(c.rect());
         }
     }

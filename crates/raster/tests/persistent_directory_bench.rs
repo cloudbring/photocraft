@@ -97,7 +97,7 @@ fn snapshot_edit_benchmark() {
     for dense in [false, true] {
         let (side, spacing) = if dense { (32, 1) } else { (64, 2) };
         let surface = seeded(side, spacing);
-        let before = BTreeSurface { default_pixel: vec![0].into_boxed_slice(), tiles: surface.tiles().map(|(coord, tile)| (*coord, tile.clone())).collect() };
+        let before = BTreeSurface { default_pixel: vec![0].into_boxed_slice(), tiles: surface.tiles().map(|(coord, tile)| (coord, tile.clone())).collect() };
         let mut old_samples = Vec::new();
         let mut new_samples = Vec::new();
         for round in 0..8 {
@@ -118,7 +118,7 @@ fn snapshot_edit_benchmark() {
         assert!(new_samples.iter().all(|sample| sample.1 == new_samples[0].1));
         let scenario = if dense { "1024 tiles / full-canvas edit" } else { "4096 tiles / 200 one-tile snapshots" };
         println!(
-            "{scenario}: BTreeMap {:.3} ms / {} allocations; TileDir {:.3} ms / {} allocations (median of 7)",
+            "{scenario}: BTreeMap {:.3} ms / {} allocations; SparseTileDir {:.3} ms / {} allocations (median of 7)",
             old_samples[3].0, old_samples[3].1, new_samples[3].0, new_samples[3].1
         );
     }

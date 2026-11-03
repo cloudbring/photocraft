@@ -622,7 +622,7 @@ pub(crate) fn composite_over(dst: &mut Surface, top: &Surface) {
     }
     let a = n - 1;
     if top.default_pixel().get(a).is_none_or(|&ta| ta <= 0.0) {
-        let top_tiles: Vec<(TileCoord, Arc<Tile>)> = top.tiles().map(|(&tc, t)| (tc, t.clone())).collect();
+        let top_tiles: Vec<(TileCoord, Arc<Tile>)> = top.tiles().map(|(tc, t)| (tc, t.clone())).collect();
         if top_tiles.is_empty() {
             return;
         }

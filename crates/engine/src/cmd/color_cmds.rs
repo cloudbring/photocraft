@@ -654,7 +654,7 @@ pub fn convert_surface(s: &Surface, from: ColorMode, to: PixelFormat, t: &Transf
                 distinct.push(tile.clone());
                 distinct.len() - 1
             });
-            (*c, i)
+            (c, i)
         })
         .collect();
     let tile_px = (photocraft_geom::TILE_SIZE * photocraft_geom::TILE_SIZE) as usize;
@@ -837,7 +837,7 @@ fn ink_surface(s: &Surface, d: &Duotone) -> Surface {
     let mut dp = vec![0.0f32; ds];
     ink(&s.default_pixel(), &mut dp);
     let mut out = Surface::with_default(to, &dp);
-    let tiles: Vec<_> = s.tiles().map(|(c, t)| (*c, t.clone())).collect();
+    let tiles: Vec<_> = s.tiles().map(|(c, t)| (c, t.clone())).collect();
     let inked: Vec<Vec<u8>> = tiles
         .par_iter()
         .map(|(_, t)| {

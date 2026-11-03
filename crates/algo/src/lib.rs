@@ -1338,7 +1338,7 @@ fn apply_box_blur(
         #[cfg(target_arch = "wasm32")]
         columns.iter_mut().for_each(write);
         for (s, _) in columns {
-            out.put_tiles(s.tiles().map(|(c, t)| (*c, t.clone())));
+            out.put_tiles(s.tiles().map(|(c, t)| (c, t.clone())));
         }
         ctl.progress(0.98 * (i + 1) as f32 / bands.len() as f32);
     }

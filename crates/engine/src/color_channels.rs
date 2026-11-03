@@ -152,7 +152,7 @@ fn restrict_surface_impl(before: &Surface, after: &mut Surface, colors: ColorCha
                 let range = offset..offset.saturating_add(bytes);
                 before.default_bytes().get(range.clone()) != after.default_bytes().get(range)
             });
-            let mut coords: BTreeSet<_> = before.tiles().map(|(c, _)| *c).chain(after.tiles().map(|(c, _)| *c)).collect();
+            let mut coords: BTreeSet<_> = before.tiles().map(|(c, _)| c).chain(after.tiles().map(|(c, _)| c)).collect();
             if changed_default {
                 let area = extent.ok_or_else(|| EngineError::Other("a changed channel default needs a bounded writeback extent".into()))?;
                 if u64::from(area.width()) * u64::from(area.height()) > 268_435_456 {
@@ -192,9 +192,9 @@ fn restrict_surface_impl(before: &Surface, after: &mut Surface, colors: ColorCha
     }
     let coords: BTreeSet<_> = after
         .tiles()
-        .filter(|(c, t)| before.tile(**c).is_none_or(|o| !std::sync::Arc::ptr_eq(o, t)))
-        .map(|(c, _)| *c)
-        .chain(before.tiles().filter(|(c, _)| after.tile(**c).is_none()).map(|(c, _)| *c))
+        .filter(|(c, t)| before.tile(*c).is_none_or(|o| !std::sync::Arc::ptr_eq(o, t)))
+        .map(|(c, _)| c)
+        .chain(before.tiles().filter(|(c, _)| after.tile(*c).is_none()).map(|(c, _)| c))
         .collect();
     restrict_coords(before, after, colors, coords)?;
     after.prune();
@@ -275,7 +275,7 @@ pub(crate) fn extract_region(surface: &Surface, component: usize, region: Option
             for (src, dst) in tile.bytes().chunks_exact(fmt.bytes_per_pixel()).zip(dest.bytes_mut().chunks_exact_mut(fmt.sample.bytes())) {
                 photocraft_color::write_sample(dst, fmt.sample, 0, tone(read_sample(src, fmt.sample, component)));
             }
-            Ok((*coord, std::sync::Arc::new(dest)))
+            Ok((coord, std::sync::Arc::new(dest)))
         })
         .collect::<Result<Vec<_>>>()?;
     out.put_tiles(done);
@@ -305,7 +305,7 @@ pub(crate) fn scatter_selected(
         return Err(EngineError::Other("a colour plane must be grayscale without alpha at the destination depth".into()));
     }
     let transparent = fmt.alpha && surface.default_pixel().last().is_some_and(|a| *a == 0.0);
-    let mut coords: BTreeSet<_> = surface.tiles().map(|(c, _)| *c).chain(plane.tiles().map(|(c, _)| *c)).collect();
+    let mut coords: BTreeSet<_> = surface.tiles().map(|(c, _)| c).chain(plane.tiles().map(|(c, _)| c)).collect();
     let old_default = read_sample(surface.default_bytes(), fmt.sample, component);
     let old_tone = if fmt.mode == ColorMode::Cmyk { 1.0 - old_default } else { old_default };
     if !transparent && plane.default_pixel().first().is_some_and(|v| *v != old_tone) {
@@ -316,7 +316,7 @@ pub(crate) fn scatter_selected(
     }
     let selected_tiles: Option<BTreeSet<_>> = selection
         .filter(|mask| mask.default_pixel().first().is_none_or(|v| *v <= 0.0))
-        .map(|mask| mask.tiles().filter(|(_, tile)| tile.content_bounds(mask.default_bytes()).is_some()).map(|(coord, _)| *coord).collect());
+        .map(|mask| mask.tiles().filter(|(_, tile)| tile.content_bounds(mask.default_bytes()).is_some()).map(|(coord, _)| coord).collect());
     use rayon::prelude::*;
     let done = coords
         .into_par_iter()
@@ -430,7 +430,7 @@ fn adjust_reference(
             let value = old.default_pixel().first().copied().unwrap_or(0.0);
             plane = Surface::with_default(old.format(), &[value + (mirror - value.clamp(0.0, 1.0) - value) * weight]);
             let coords: BTreeSet<_> =
-                old.tiles().map(|(coord, _)| *coord).chain(selection.into_iter().flat_map(|mask| mask.tiles().map(|(coord, _)| *coord))).collect();
+                old.tiles().map(|(coord, _)| coord).chain(selection.into_iter().flat_map(|mask| mask.tiles().map(|(coord, _)| coord))).collect();
             for coord in coords {
                 let r = coord.rect();
                 let mut values = crate::allocation::read_region(&old, r, "inverting native Lab chroma")?;
@@ -479,7 +479,7 @@ fn adjust_plane(
         .into_par_iter()
         .map(|(coord, tile)| {
             let mut one = Surface::with_default(format, &default);
-            one.put_tiles([(*coord, (*tile).clone())]);
+            one.put_tiles([(coord, (*tile).clone())]);
             crate::pixels::adjust_mask_with_transfer(&mut one, adjustment, None, transfer, rgb_document).map_err(EngineError::Other)?;
             Ok(one.take_tiles(coord.rect()))
         })

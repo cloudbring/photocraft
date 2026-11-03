@@ -33,7 +33,7 @@ fn previous_read_region(surface: &Surface, r: Rect) -> Vec<f32> {
     let dp = surface.default_pixel();
     for tc in r.tiles() {
         let tr = tc.rect().intersect(&r);
-        let tile = surface.tiles.get(&tc);
+        let tile = surface.tiles.get(tc.tx, tc.ty);
         for y in tr.y0..tr.y1 {
             for x in tr.x0..tr.x1 {
                 let o = (((y - r.y0) as usize) * w + (x - r.x0) as usize) * n;
@@ -431,7 +431,7 @@ fn copy_on_write_shares_untouched_tiles() {
     assert_eq!(a.pixel(10, 10), vec![1.0, 0.0, 0.0, 1.0]);
     assert_eq!(b.pixel(10, 10), vec![0.0, 1.0, 0.0, 1.0]);
     // only tile (0,0) was copied
-    let shared = a.tiles().filter(|(c, t)| Arc::ptr_eq(t, b.tile(**c).unwrap())).count();
+    let shared = a.tiles().filter(|(c, t)| Arc::ptr_eq(t, b.tile(*c).unwrap())).count();
     assert_eq!(shared, 3);
 }
 
@@ -852,4 +852,60 @@ fn fallible_interleaved_writes_match_encoded_pixels_and_reject_bad_lengths() {
         assert_eq!(surface.to_interleaved(rect), bytes);
         assert_eq!(shared.to_interleaved(rect), replacement);
     }
+}
+
+#[test]
+fn surface_clones_share_roots_and_mutations_copy_only_the_path() {
+    let mut s = Surface::new(PixelFormat::GRAY8);
+    let tile = s.solid_tile(&[1.0 / 255.0]);
+    s.put_tiles([TileCoord::new(i32::MIN, 0), TileCoord::new(0, 0), TileCoord::new(0, 1)].into_iter().map(|c| (c, tile.clone())));
+    let snapshot = s.clone();
+    assert!(s.tiles.ptr_eq(&snapshot.tiles));
+    let coord = TileCoord::new(0, 1);
+    s.tile_mut(coord).bytes_mut()[0] = 9;
+    assert_eq!(snapshot.tile(coord).unwrap().bytes()[0], 1);
+    assert_eq!(s.tile(coord).unwrap().bytes()[0], 9);
+    assert!(!s.tiles.ptr_eq(&snapshot.tiles) && s.tiles.shared_with(&snapshot.tiles));
+    assert_ne!(s, snapshot);
+    s.put_tiles([(coord, tile)]);
+    assert_eq!(s, snapshot);
+}
+
+#[test]
+fn surface_signed_extremes_stay_sorted_in_tile_coord_order() {
+    let coords = [i32::MIN, -1, 0, 1, 15, 16, i32::MAX];
+    let mut s = Surface::new(PixelFormat::GRAY8);
+    let tile = s.solid_tile(&[7.0 / 255.0]);
+    let ordered: Vec<_> = coords.into_iter().flat_map(|tx| coords.into_iter().map(move |ty| TileCoord::new(tx, ty))).collect();
+    s.put_tiles(ordered.iter().rev().map(|&c| (c, tile.clone())));
+    assert!(s.tiles().map(|(c, _)| c).eq(ordered.iter().copied()));
+    let mut forward = Surface::new(PixelFormat::GRAY8);
+    forward.put_tiles(ordered.iter().map(|&c| (c, tile.clone())));
+    assert_eq!(s, forward);
+}
+
+#[test]
+fn surface_snapshots_match_ordered_model_across_edits() {
+    let mut s = Surface::new(PixelFormat::GRAY8);
+    let mut snapshots = Vec::new();
+    for (tx, ty, v) in [(-5, 3, 10u8), (0, -1, 20), (4, 4, 30), (0, -1, 40)] {
+        snapshots.push((s.clone(), s.tiles().map(|(c, t)| (c, t.clone())).collect::<Vec<_>>()));
+        let t = s.solid_tile(&[f32::from(v) / 255.0]);
+        s.put_tiles([(TileCoord::new(tx, ty), t)]);
+    }
+    for (snap, expected) in snapshots {
+        assert!(snap.tiles().map(|(c, t)| (c, t.clone())).eq(expected));
+    }
+}
+
+#[test]
+fn surface_prune_keeps_canonical_equality() {
+    let mut s = Surface::new(PixelFormat::GRAY8);
+    let non_zero = s.solid_tile(&[1.0]);
+    let zero = s.solid_tile(&[0.0]);
+    s.put_tiles((0..8).map(|ty| (TileCoord::new(-1, ty), if ty % 2 == 0 { non_zero.clone() } else { zero.clone() })));
+    s.prune();
+    let mut rebuilt = Surface::new(PixelFormat::GRAY8);
+    rebuilt.put_tiles((0..8).filter(|ty| ty % 2 == 0).map(|ty| (TileCoord::new(-1, ty), non_zero.clone())));
+    assert_eq!(s, rebuilt);
 }

@@ -1230,7 +1230,7 @@ fn duplicates_copy_their_source_texture() {
     let mut dup3 = d.layers[1].duplicate();
     *dup3.surface_mut().unwrap() = {
         let mut s = photocraft_raster::Surface::new(PixelFormat::RGBA8);
-        s.put_tiles(d.layers[1].surface().unwrap().tiles().skip(1).map(|(c, t)| (*c, t.clone())));
+        s.put_tiles(d.layers[1].surface().unwrap().tiles().skip(1).map(|(c, t)| (c, t.clone())));
         s
     };
     d.layers.push(dup3);

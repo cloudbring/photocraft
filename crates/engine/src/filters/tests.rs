@@ -389,8 +389,8 @@ fn keep_alpha_serial(old: &photocraft_raster::Surface, new: &mut photocraft_rast
     if old.format() != new.format() || !new.format().alpha {
         return;
     }
-    let mut coords: Vec<_> = new.tiles().filter(|(c, t)| old.tile(**c).is_none_or(|o| !std::sync::Arc::ptr_eq(o, t))).map(|(c, _)| *c).collect();
-    coords.extend(old.tiles().filter(|(c, _)| new.tile(**c).is_none()).map(|(c, _)| *c));
+    let mut coords: Vec<_> = new.tiles().filter(|(c, t)| old.tile(*c).is_none_or(|o| !std::sync::Arc::ptr_eq(o, t))).map(|(c, _)| c).collect();
+    coords.extend(old.tiles().filter(|(c, _)| new.tile(*c).is_none()).map(|(c, _)| c));
     let n = new.channels();
     for c in coords {
         let r = c.rect();
@@ -451,7 +451,7 @@ fn keep_alpha_stops_when_cancelled_and_keeps_the_tiles() {
     assert!(matches!(keep_alpha(&old, &mut got, &cancel), Err(EngineError::Cancelled)));
     // The cancel was seen inside the pass (after some tiles), and no tile went missing.
     assert!(calls.load(std::sync::atomic::Ordering::SeqCst) > 2);
-    assert!(new.tiles().all(|(c, _)| got.tile(*c).is_some()));
+    assert!(new.tiles().all(|(c, _)| got.tile(c).is_some()));
 }
 
 /// #7423: Displace on a Smart Object keeps its map (read from an open document) in the smart

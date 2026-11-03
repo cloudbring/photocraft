@@ -369,8 +369,8 @@ pub(crate) fn keep_alpha(old: &photocraft_raster::Surface, new: &mut photocraft_
     if old.format() != new.format() || !new.format().alpha {
         return Ok(());
     }
-    let mut coords: Vec<_> = new.tiles().filter(|(c, t)| old.tile(**c).is_none_or(|o| !std::sync::Arc::ptr_eq(o, t))).map(|(c, _)| *c).collect();
-    coords.extend(old.tiles().filter(|(c, _)| new.tile(**c).is_none()).map(|(c, _)| *c));
+    let mut coords: Vec<_> = new.tiles().filter(|(c, t)| old.tile(*c).is_none_or(|o| !std::sync::Arc::ptr_eq(o, t))).map(|(c, _)| c).collect();
+    coords.extend(old.tiles().filter(|(c, _)| new.tile(*c).is_none()).map(|(c, _)| c));
     let (fmt, n) = (new.format(), new.channels());
     let default = new.default_pixel();
     // Each changed tile alone in a surface (a tile `new` lacks is taken as its default pixel, as
@@ -403,7 +403,7 @@ pub(crate) fn keep_alpha(old: &photocraft_raster::Surface, new: &mut photocraft_
         })
         .reduce(|| true, |a, b| a && b);
     for (_, s) in tiles {
-        new.put_tiles(s.tiles().map(|(c, t)| (*c, t.clone())));
+        new.put_tiles(s.tiles().map(|(c, t)| (c, t.clone())));
     }
     if !fixed {
         return Err(EngineError::Cancelled);

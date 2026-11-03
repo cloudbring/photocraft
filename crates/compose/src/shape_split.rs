@@ -144,7 +144,7 @@ fn fit_stroke(fill: &Surface, stroke: &mut Surface, cache: &Surface, canvas: Rec
     let whole = r;
     let bare_transparent = [fill, &*stroke, cache].iter().all(|s| s.default_pixel().iter().all(|v| *v == 0.0));
     if bare_transparent {
-        let mut coords: Vec<TileCoord> = fill.tiles().map(|(c, _)| *c).chain(stroke.tiles().map(|(c, _)| *c)).chain(cache.tiles().map(|(c, _)| *c)).collect();
+        let mut coords: Vec<TileCoord> = fill.tiles().map(|(c, _)| c).chain(stroke.tiles().map(|(c, _)| c)).chain(cache.tiles().map(|(c, _)| c)).collect();
         coords.sort_unstable();
         coords.dedup();
         for c in coords {

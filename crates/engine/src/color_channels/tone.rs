@@ -31,7 +31,7 @@ pub(super) fn adjust(surface: &mut Surface, colors: ColorChannels, adjustment: &
     if colors.indices().any(|k| k >= fmt.mode.color_channels()) {
         return Err(EngineError::Other("invalid colour component".into()));
     }
-    let mut coords: BTreeSet<_> = surface.tiles().map(|(c, _)| *c).chain(selection.into_iter().flat_map(|s| s.tiles().map(|(c, _)| *c))).collect();
+    let mut coords: BTreeSet<_> = surface.tiles().map(|(c, _)| c).chain(selection.into_iter().flat_map(|s| s.tiles().map(|(c, _)| c))).collect();
     let selected_default = selection.map_or(1.0, |s| s.default_pixel().first().copied().unwrap_or(0.0)).clamp(0.0, 1.0);
     let transfer = adjust::Transfer::for_document(fmt.mode, fmt.sample);
     let mode = if fmt.mode == ColorMode::Rgb { ColorMode::Rgb } else { ColorMode::Grayscale };

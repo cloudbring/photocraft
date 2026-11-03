@@ -1522,7 +1522,7 @@ fn copy_shares_whole_tiles_with_the_layer() {
     all.fill_rect(canvas, &[1.0]);
     for sel in [None, Some(&all)] {
         let clip = lift(&src, sel, canvas).unwrap();
-        let shared = src.tiles().filter(|(c, t)| clip.surface.tile(**c).is_some_and(|o| std::sync::Arc::ptr_eq(o, t))).count();
+        let shared = src.tiles().filter(|(c, t)| clip.surface.tile(*c).is_some_and(|o| std::sync::Arc::ptr_eq(o, t))).count();
         assert_eq!(shared, src.tile_count(), "every tile is shared");
     }
 }

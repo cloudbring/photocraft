@@ -156,7 +156,7 @@ impl Plugin {
             let results: Vec<Result<Surface>> = chunk.iter().map(run).collect();
             for r in results {
                 for (c, t) in r?.tiles() {
-                    out.tile_mut(*c).bytes_mut().copy_from_slice(t.bytes());
+                    out.tile_mut(c).bytes_mut().copy_from_slice(t.bytes());
                 }
             }
         }

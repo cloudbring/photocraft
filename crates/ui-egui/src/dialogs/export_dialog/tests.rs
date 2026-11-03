@@ -712,7 +712,7 @@ fn check_profile_only_export(width: u32, height: u32) -> std::time::Duration {
     assert_eq!(source.tile_count(), output.tile_count());
     assert_eq!(source.default_pixel(), output.default_pixel());
     for (coord, tile) in source.tiles() {
-        assert!(Arc::ptr_eq(tile, output.tile(*coord).unwrap()), "tagging must reuse pixel tiles");
+        assert!(Arc::ptr_eq(tile, output.tile(coord).unwrap()), "tagging must reuse pixel tiles");
     }
     assert_eq!(doc, before);
     elapsed

@@ -250,7 +250,7 @@ pub fn combine_sparse(a: &Surface, b: &Surface, area: Rect, f: impl Fn(f32, f32)
     let da = a.default_bytes().first().copied().unwrap_or(0);
     let mut out = a.clone();
     let (full, untouched) = (out.solid_tile(&[1.0]), out.solid_tile(&[decode8(da)]));
-    let coords: Vec<TileCoord> = b.tiles().map(|(c, _)| *c).filter(|c| !c.rect().intersect(&area).is_empty()).collect();
+    let coords: Vec<TileCoord> = b.tiles().map(|(c, _)| c).filter(|c| !c.rect().intersect(&area).is_empty()).collect();
     // Each tile: `Some(tile)` to store, `None` when it reads as `a`'s untouched value.
     let built = par_map(coords.len(), |k| {
         let tc = *coords.get(k)?;

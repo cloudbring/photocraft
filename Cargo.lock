@@ -1419,6 +1419,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-tiledir"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#5ac933bbe92d82a587a5c48ce135fa1d4d14b423"
+
+[[package]]
 name = "craft-ui"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
@@ -5363,6 +5368,7 @@ name = "photocraft-raster"
 version = "0.20.1"
 dependencies = [
  "allocation-counter",
+ "craft-tiledir",
  "photocraft-color",
  "photocraft-geom",
  "proptest",

@@ -302,7 +302,7 @@ fn unselected_tiles_stay_shared() {
         let mut kept = 0;
         for (c, t) in before.tiles() {
             if corners.iter().all(|r| c.rect().intersect(r).is_empty()) {
-                assert!(after.tile(*c).is_some_and(|a| std::sync::Arc::ptr_eq(a, t)), "{cmd}: unselected tile {c:?} was copied");
+                assert!(after.tile(c).is_some_and(|a| std::sync::Arc::ptr_eq(a, t)), "{cmd}: unselected tile {c:?} was copied");
                 kept += 1;
             }
         }

@@ -99,7 +99,7 @@ pub fn adjust_surface(s: &mut Surface, adj: &Adjustment, selection: Option<&Surf
     // Past a budget a transparent default needs only the stored tiles adjusted (the gaps stay
     // transparent); an opaque default would change under the adjustment everywhere in that grid,
     // so the adjustment is refused rather than left half applied.
-    let stored: Vec<_> = s.tiles().map(|(c, _)| *c).filter(|c| !c.rect().intersect(&r).is_empty()).collect();
+    let stored: Vec<_> = s.tiles().map(|(c, _)| c).filter(|c| !c.rect().intersect(&r).is_empty()).collect();
     let transparent = fmt.alpha && s.default_pixel().last().is_some_and(|a| *a <= 0.0);
     let over = unstored_bytes(r, stored.len() as u64, &fmt) > MAX_UNSTORED_BYTES;
     if over && !transparent {
@@ -156,7 +156,7 @@ pub(crate) fn adjust_mask_with_transfer(
         let blank = Surface::with_default(fmt, &s.default_pixel());
         let mask_default = Surface::with_default(sel.format(), &sel.default_pixel());
         let mut out = Surface::with_default(fmt, &adjusted_with_transfer(&blank, unit, adj, Some(&mask_default), mode, transfer));
-        let stored: std::collections::BTreeSet<_> = s.tiles().map(|(c, _)| *c).chain(sel.tiles().map(|(c, _)| *c)).collect();
+        let stored: std::collections::BTreeSet<_> = s.tiles().map(|(c, _)| c).chain(sel.tiles().map(|(c, _)| c)).collect();
         for coord in stored {
             let r = coord.rect();
             out.try_write_region(r, &adjusted_with_transfer(s, r, adj, selection, mode, transfer)).map_err(|e| e.to_string())?;

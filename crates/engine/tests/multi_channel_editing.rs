@@ -41,7 +41,7 @@ fn unchanged(before: &Surface, after: &Surface) {
     let bytes = fmt.sample.bytes();
     let keep: Vec<_> = (0..fmt.channels()).filter(|k| ![0, 2].contains(k)).collect();
     for (c, t) in before.tiles() {
-        let new = after.tile(*c).unwrap();
+        let new = after.tile(c).unwrap();
         for (a, b) in t.bytes().chunks_exact(fmt.bytes_per_pixel()).zip(new.bytes().chunks_exact(fmt.bytes_per_pixel())) {
             for k in &keep {
                 assert_eq!(&a[k * bytes..(k + 1) * bytes], &b[k * bytes..(k + 1) * bytes], "component {k}");

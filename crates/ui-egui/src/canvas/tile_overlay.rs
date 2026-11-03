@@ -97,7 +97,7 @@ pub fn tile_infos(s: &Surface, parallel: bool) -> Vec<TileInfo> {
                 let next = group_of.len();
                 *group_of.entry(*h).or_insert(next)
             });
-            TileInfo { coord: *c, group }
+            TileInfo { coord: c, group }
         })
         .collect()
 }

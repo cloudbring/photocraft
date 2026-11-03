@@ -293,7 +293,7 @@ fn shape_tiles_and_group_pins_hold_addresses_not_pixels() {
     assert_eq!(Arc::strong_count(&first), 2, "the snapshot adds no strong reference");
     assert!(damage(&old, &s).is_empty());
     s.fill_rect(Rect::new(0, 0, 4, 4), &[0.0, 0.0, 0.0, 1.0]);
-    let origin = s.tiles().map(|(c, _)| *c).find(|c| c.tx == 0 && c.ty == 0).unwrap();
+    let origin = s.tiles().map(|(c, _)| c).find(|c| c.tx == 0 && c.ty == 0).unwrap();
     assert_eq!(damage(&old, &s), origin.rect(), "only the edited tile");
     drop(first);
     assert!(old.values().any(|w| w.strong_count() == 0), "the replaced tile's pixels are freed");
