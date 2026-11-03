@@ -22,6 +22,7 @@
 #![allow(clippy::needless_range_loop)] // index loops mirror the maths (pixels × channels)
 
 use crate::photo_util::{Normal, linear_to_srgb, par_rows, srgb_to_linear};
+use crate::robust;
 use crate::tone::HdrToning;
 
 fn luma(c: [f32; 4]) -> f32 {
@@ -41,19 +42,15 @@ pub fn estimate_exposures(imgs: &[&[[f32; 4]]]) -> Vec<f64> {
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&a, &b| mean[a].total_cmp(&mean[b]));
     let mut ex = vec![1.0f64; n];
+    let mut ratios = Vec::new();
     for k in 1..n {
         let (a, b) = (order[k - 1], order[k]);
-        let mut ratios: Vec<f64> = imgs[a]
-            .iter()
-            .zip(imgs[b].iter())
-            .step_by(7)
-            .filter_map(|(pa, pb)| {
-                let (la, lb) = (luma(*pa), luma(*pb));
-                ((0.08..0.92).contains(&la) && (0.08..0.92).contains(&lb)).then(|| srgb_to_linear(lb) as f64 / srgb_to_linear(la).max(1e-6) as f64)
-            })
-            .collect();
-        ratios.sort_by(f64::total_cmp);
-        let r = if ratios.is_empty() { 2.0 } else { ratios[ratios.len() / 2].max(1.0) };
+        ratios.clear();
+        ratios.extend(imgs[a].iter().zip(imgs[b].iter()).step_by(7).filter_map(|(pa, pb)| {
+            let (la, lb) = (luma(*pa), luma(*pb));
+            ((0.08..0.92).contains(&la) && (0.08..0.92).contains(&lb)).then(|| srgb_to_linear(lb) as f64 / srgb_to_linear(la).max(1e-6) as f64)
+        }));
+        let r = robust::median_f64(&mut ratios).map_or(2.0, |value| value.max(1.0));
         ex[b] = ex[a] * r;
     }
     ex
@@ -73,27 +70,33 @@ fn shrink(w: usize, h: usize, g: &[f32]) -> (usize, usize, Vec<f32>) {
     (nw, nh, out)
 }
 
-fn bitmaps(g: &[f32]) -> (Vec<bool>, Vec<bool>) {
-    let mut s: Vec<f32> = g.to_vec();
-    s.sort_by(f32::total_cmp);
-    let med = s[s.len() / 2];
+fn bitmaps(g: &[f32], scratch: &mut Vec<f32>) -> (Vec<bool>, Vec<bool>) {
+    scratch.clear();
+    scratch.extend_from_slice(g);
+    let Some(med) = robust::median_f32(scratch) else {
+        return (Vec::new(), Vec::new());
+    };
     (g.iter().map(|v| *v > med).collect(), g.iter().map(|v| (v - med).abs() > 4.0 / 255.0).collect())
 }
 
 /// Translation `(dx, dy)` that aligns grey image `img` to `reference` (Ward's MTB), searching
 /// up to `2^levels` px.
 pub fn mtb_offset(w: usize, h: usize, reference: &[f32], img: &[f32], levels: usize) -> (i32, i32) {
+    mtb_offset_with_scratch(w, h, reference, img, levels, &mut Vec::new())
+}
+
+fn mtb_offset_with_scratch(w: usize, h: usize, reference: &[f32], img: &[f32], levels: usize, scratch: &mut Vec<f32>) -> (i32, i32) {
     if levels == 0 || w < 16 || h < 16 {
         return (0, 0);
     }
     let (cur_x, cur_y) = {
         let (sw, sh, sr) = shrink(w, h, reference);
         let (_, _, si) = shrink(w, h, img);
-        let (x, y) = mtb_offset(sw, sh, &sr, &si, levels - 1);
+        let (x, y) = mtb_offset_with_scratch(sw, sh, &sr, &si, levels - 1, scratch);
         (x * 2, y * 2)
     };
-    let (tr, er) = bitmaps(reference);
-    let (ti, ei) = bitmaps(img);
+    let (tr, er) = bitmaps(reference, scratch);
+    let (ti, ei) = bitmaps(img, scratch);
     let mut best = (u64::MAX, 0, 0);
     for dy in -1..=1 {
         for dx in -1..=1 {
@@ -319,16 +322,14 @@ pub fn merge(w: usize, h: usize, imgs: &[&[[f32; 4]]], opts: &MergeOptions) -> M
         }
     }
     // Scale per channel so the base exposure's well-exposed pixels map to their linear values.
+    let mut r = Vec::new();
     for c in 0..3 {
-        let mut r: Vec<f64> = (0..w * h)
-            .step_by(37)
-            .filter_map(|i| {
-                let v = imgs[base][i][c];
-                ((0.15..0.85).contains(&v) && px[i][c] > 0.0).then(|| srgb_to_linear(v) as f64 / (px[i][c] as f64 * opts.exposures[base]))
-            })
-            .collect();
-        r.sort_by(f64::total_cmp);
-        let k = if r.is_empty() { 1.0 } else { r[r.len() / 2] } * opts.exposures[base];
+        r.clear();
+        r.extend((0..w * h).step_by(37).filter_map(|i| {
+            let v = imgs[base][i][c];
+            ((0.15..0.85).contains(&v) && px[i][c] > 0.0).then(|| srgb_to_linear(v) as f64 / (px[i][c] as f64 * opts.exposures[base]))
+        }));
+        let k = robust::median_f64(&mut r).unwrap_or(1.0) * opts.exposures[base];
         for q in px.iter_mut() {
             q[c] = (q[c] as f64 * k) as f32;
         }
@@ -424,6 +425,18 @@ pub fn tone_map(px: &mut [[f32; 4]], w: usize, h: usize, method: &ToneMethod) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bitmaps_match_sorted_threshold_and_reuse_scratch() {
+        let mut scratch = Vec::new();
+        for values in [&[0.0, -0.0, 0.4, 0.4, 0.9, f32::NAN][..], &[0.2, 0.7, 0.1][..]] {
+            let mut sorted = values.to_vec();
+            sorted.sort_by(f32::total_cmp);
+            let median = sorted[sorted.len() / 2];
+            let expected = (values.iter().map(|value| *value > median).collect(), values.iter().map(|value| (value - median).abs() > 4.0 / 255.0).collect());
+            assert_eq!(bitmaps(values, &mut scratch), expected);
+        }
+    }
 
     /// A radiance map with a wide range, the camera's response a gamma-ish curve.
     fn scene(w: usize, h: usize) -> Vec<[f32; 3]> {

@@ -498,8 +498,7 @@ pub fn align(feats: &[ImageFeatures], matches: &[PairMatch], opts: &AlignOptions
             .collect();
         let side = feats.iter().map(|f| f.w.max(f.h)).max().unwrap_or(1) as f64;
         fs.retain(|f| *f > side * 0.2 && *f < side * 20.0);
-        fs.sort_by(f64::total_cmp);
-        if fs.is_empty() { side } else { fs[fs.len() / 2] }
+        crate::robust::median_f64(&mut fs).unwrap_or(side)
     });
     if opts.layout != Layout::Auto {
         return align_layout(feats, matches, opts, opts.layout, focal);

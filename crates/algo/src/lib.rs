@@ -68,6 +68,7 @@ mod render;
 pub mod render2;
 pub mod resample;
 pub mod retouch;
+pub mod robust;
 pub mod scancrop;
 pub mod seam;
 pub mod segment;
