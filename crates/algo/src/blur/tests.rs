@@ -67,7 +67,7 @@ fn small_gaussian_radii_blur_smoothly() {
         assert!((spread(&k) - radius * radius).abs() < 2e-5, "variance at {radius}: {}", spread(&k));
     }
     for radius in [1.0, 1.5, 3.0, 4.0] {
-        assert_eq!(gaussian_blur_kernel(radius), gaussian_kernel(radius), "{radius}");
+        assert!((spread(&gaussian_blur_kernel(radius)) - radius * radius).abs() < 1e-4, "{radius}");
     }
     assert_eq!(gaussian_blur_kernel(0.0), vec![1.0]);
 }
@@ -239,13 +239,7 @@ fn layer_box_blurs_match_direct_convolution_at_any_radius() {
         PixelFormat::CMYKA8,
         PixelFormat::new(ColorMode::Lab, SampleType::F32, false),
     ];
-    let params = [
-        FilterParams::GaussianBlur { radius: 4.5 },
-        FilterParams::GaussianBlur { radius: 9.3 },
-        FilterParams::GaussianBlur { radius: 40.0 },
-        FilterParams::BoxBlur { radius: 5.0 },
-        FilterParams::BoxBlur { radius: 70.0 },
-    ];
+    let params = [FilterParams::BoxBlur { radius: 5.0 }, FilterParams::BoxBlur { radius: 70.0 }];
     for (i, fmt) in formats.into_iter().enumerate() {
         let s = noisy(fmt, canvas, 0x9e37_79b9 + i as u32);
         // A level of the depth (colour and alpha are each rounded on write) plus float noise.
@@ -508,7 +502,7 @@ fn box_blur_honours_a_cancel_at_every_check() {
         let row = r.y0 as usize * src.width() as usize * n;
         buf.extend_from_slice(&px[row + x0..row + x1]);
     };
-    let Some(boxes) = box_widths(&FilterParams::GaussianBlur { radius: 12.0 }) else { panic!("box passes") };
+    let boxes = boxes_for_gauss(12.0, 3);
     let out = Rect::new(-5, 3, 155, 80);
     let want = box_blur(src, &read, out, n, true, &boxes, &Interrupt::NONE).unwrap();
     let checks = AtomicUsize::new(0);

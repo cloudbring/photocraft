@@ -203,8 +203,9 @@ fn gaussian_sigma_matches_radius() {
     let out = apply(&s, &FilterParams::GaussianBlur { radius: 2.0 }, R, R, None);
     let a0 = out.pixel(20, 15)[3];
     let a2 = out.pixel(22, 15)[3];
-    // exp(-d²/2σ²) at d = σ = 2 → e^-0.5
-    assert!((a2 / a0 - (-0.5f32).exp()).abs() < 1e-3, "{}", a2 / a0);
+    let kernel = craft_blur::gaussian_kernel(2.0).unwrap();
+    let center = kernel.len() / 2;
+    assert!((a2 / a0 - kernel[center + 2] / kernel[center]).abs() < 1e-6, "{}", a2 / a0);
 }
 
 #[test]

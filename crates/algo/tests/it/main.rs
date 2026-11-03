@@ -1,5 +1,6 @@
 //! The crate's integration tests, linked into one test binary.
 
+mod gaussian_variance;
 mod liquify_freeze_formats;
 mod liquify_source_footprint;
 mod retouch_blur_exact;

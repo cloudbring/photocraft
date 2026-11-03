@@ -1,5 +1,5 @@
 //! Separable blurs described as data, so another device (the GPU compositor's layer operators,
-//! #5772) runs exactly the blur the CPU runs: the kernel weights or box widths come from here,
+//! #5772) runs exactly the blur the CPU runs: weights, box widths or recursive coefficients come from here,
 //! and [`crate::blur`] builds its own passes from the same description, so the two can't drift.
 //!
 //! [`OperatorRegion`] is the region rule that goes with it: which source pixels an output area
@@ -7,7 +7,7 @@
 
 use photocraft_geom::Rect;
 
-use crate::{FilterParams, blur};
+use crate::FilterParams;
 
 /// A blur made of passes along each axis, horizontal first, as the CPU runs it.
 #[derive(Clone, Debug, PartialEq)]
@@ -16,26 +16,35 @@ pub enum Separable {
     Kernel(Vec<f32>),
     /// Running-mean box passes of these odd widths, in turn, along each axis.
     Boxes(Vec<usize>),
+    /// Infinite-support coefficients; every original row and column is required.
+    Recursive(craft_blur::Recursive),
 }
 
 impl Separable {
     /// The blur `params` runs on the CPU, or `None` for a filter that isn't one (only Gaussian
-    /// Blur so far). Small radii use the exact kernel, larger ones three box passes.
+    /// Blur so far). The shared Recursive quality uses sampled kernels below 8 px.
     pub fn of(params: &FilterParams) -> Option<Self> {
         match *params {
-            FilterParams::GaussianBlur { radius } => Some(match blur::box_widths(params) {
-                Some(boxes) => Separable::Boxes(boxes),
-                None => Separable::Kernel(blur::gaussian_blur_kernel(radius)),
-            }),
+            FilterParams::GaussianBlur { radius } if radius < 0.05 => Some(Separable::Kernel(vec![1.0])),
+            FilterParams::GaussianBlur { radius } => {
+                let filter = craft_blur::Gaussian::new(radius, craft_blur::Quality::Recursive).ok()?;
+                Some(match filter.separable() {
+                    craft_blur::Separable::Kernel(kernel) => Separable::Kernel(kernel.clone()),
+                    craft_blur::Separable::Recursive(coefficients) => Separable::Recursive(coefficients.clone()),
+                    craft_blur::Separable::Boxes(widths) => Separable::Boxes(widths.to_vec()),
+                })
+            }
             _ => None,
         }
     }
 
     /// How far outside an output pixel the blur reads, along each axis.
+    /// `i32::MAX` denotes recursive support: read the complete extent, never a tile halo.
     pub fn reach(&self) -> i32 {
         let reach = match self {
             Separable::Kernel(k) => k.len() / 2,
             Separable::Boxes(boxes) => boxes.iter().fold(0usize, |sum, w| sum.saturating_add(w / 2)),
+            Separable::Recursive(_) => return i32::MAX,
         };
         i32::try_from(reach).unwrap_or(i32::MAX)
     }
@@ -71,14 +80,13 @@ impl OperatorRegion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Halo;
+    use crate::{Halo, blur};
     use photocraft_color::{ColorMode, PixelFormat, SampleType};
     use photocraft_raster::{Interrupt, Surface};
 
     const RADII: [f32; 11] = [0.01, 0.05, 0.1, 0.3, 0.8, 2.0, 4.0, 4.5, 12.0, 40.0, 250.0];
 
-    /// The CPU blur's own choice: the exact kernel up to radius 4, boxes beyond; and its halo
-    /// (how far the CPU grows an output area) covers the reach.
+    /// The CPU description matches shared quality and declares unbounded recursive support.
     #[test]
     fn the_description_is_the_cpus_blur() {
         for radius in RADII {
@@ -86,16 +94,18 @@ mod tests {
             let blur = Separable::of(&params).unwrap();
             match &blur {
                 Separable::Kernel(k) => {
-                    assert!(radius <= 4.0, "radius {radius}");
+                    assert!(radius < 8.0, "radius {radius}");
                     assert_eq!(k, &blur::gaussian_blur_kernel(radius));
                     assert_eq!(k.len() % 2, 1);
                     assert!((k.iter().sum::<f32>() - 1.0).abs() < 1e-5);
                 }
-                Separable::Boxes(b) => {
-                    assert!(radius > 4.0, "radius {radius}");
-                    assert_eq!(Some(b.clone()), blur::box_widths(&params));
-                    assert!(b.iter().all(|w| w % 2 == 1));
+                Separable::Recursive(_) => {
+                    assert!(radius >= 8.0, "radius {radius}");
+                    assert!(matches!(params.halo(), Halo::Bounds));
+                    assert_eq!(blur.reach(), i32::MAX);
+                    continue;
                 }
+                Separable::Boxes(_) => panic!("Gaussian quality must not use boxes"),
             }
             let Halo::Radius(halo) = params.halo() else { panic!("a Gaussian has a radius halo") };
             assert!(blur.reach() <= halo, "radius {radius}: reach {} past the halo {halo}", blur.reach());
@@ -112,6 +122,9 @@ mod tests {
         for radius in RADII {
             let params = FilterParams::GaussianBlur { radius };
             let reach = Separable::of(&params).unwrap().reach();
+            if reach == i32::MAX {
+                continue;
+            }
             let fmt = PixelFormat::new(ColorMode::Rgb, SampleType::F32, true);
             let size = 2 * reach + 41;
             let canvas = Rect::new(0, 0, size, size);

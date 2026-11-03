@@ -13,8 +13,8 @@ fn textured(n: u32) -> Surface {
     s
 }
 
-/// Gaussian Blur's direct-kernel path (radius up to 4; larger radii use box passes), including
-/// the variance-matched kernels below radius 1 (#8544).
+/// Gaussian Blur's variance-calibrated direct-kernel path (below 8 px); larger radii use
+/// the shared recursive filter.
 fn gaussian_direct(c: &mut Criterion) {
     let n = 2048;
     let s = textured(n);

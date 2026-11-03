@@ -566,8 +566,9 @@ impl FilterParams {
     pub fn halo(&self) -> Halo {
         let g = |sigma: f32| Halo::Radius(((sigma.max(0.0) * 3.0).ceil() as i32).saturating_add(1));
         match self {
-            // Small Gaussian radii use the calibrated seven-tap kernel as well: its reach is
-            // three pixels even when ceil(3 * radius) + 1 would be smaller.
+            FilterParams::GaussianBlur { radius } if (8.0..=65_536.0).contains(radius) => Halo::Bounds,
+            // Subpixel High Pass retains its seven-tap kernel; Gaussian's calibrated kernels
+            // also fit this three-pixel reach when ceil(3 * radius) + 1 would be smaller.
             FilterParams::GaussianBlur { radius } | FilterParams::HighPass { radius } if (0.05..1.0).contains(radius) => Halo::Radius(3),
             FilterParams::GaussianBlur { radius } | FilterParams::HighPass { radius } => g(*radius),
             FilterParams::UnsharpMask { radius, .. } => Halo::Radius(sharpen::exact::halo(*radius)),
@@ -962,6 +963,10 @@ pub const TILE: i32 = 256;
 /// Clipped to the selection's bounds when there is one.
 pub fn output_area(params: &FilterParams, content: Rect, bounds: Rect, selection_bounds: Option<Rect>) -> Rect {
     let mut area = match params.halo_for(bounds) {
+        Halo::Bounds if matches!(params, FilterParams::GaussianBlur { .. }) => {
+            let FilterParams::GaussianBlur { radius } = *params else { return Rect::EMPTY };
+            if content.is_empty() { Rect::EMPTY } else { content.inflate(((radius * 3.0).ceil() as i32).saturating_add(1)) }
+        }
         Halo::Bounds => bounds,
         Halo::Radius(_) if params.renders_from_nothing() => bounds,
         Halo::Radius(r) => {
@@ -1088,8 +1093,14 @@ fn apply_tiled_with_impl(
     if prepare_fast_paths && let Some(result) = sharpen::fft::apply(surface, params, area, selection, extent, ctl) {
         return result;
     }
+    if let FilterParams::GaussianBlur { radius } = *params
+        && (8.0..=65_536.0).contains(&radius)
+    {
+        let filter = craft_blur::Gaussian::new(radius, craft_blur::Quality::Recursive).ok()?;
+        return apply_strip_blur(out, surface, area, extent, selection, blur::StripFilter::Gaussian(&filter), ctl);
+    }
     if let Some(boxes) = blur::box_widths(params) {
-        return apply_box_blur(out, surface, area, extent, selection, &boxes, ctl);
+        return apply_strip_blur(out, surface, area, extent, selection, blur::StripFilter::Boxes(&boxes), ctl);
     }
     if let Some(result) = blur::motion_apply::apply(surface, params, area, bounds, selection, extent, tile, ctl) {
         return result;
@@ -1282,31 +1293,59 @@ fn apply_tiled_with_impl(
     Some(out)
 }
 
-/// [`apply_tiled_with`] for the blurs run as box passes ([`blur::box_widths`]): the whole area at
+/// [`apply_tiled_with`] for box passes and recursive Gaussians: the whole area at
 /// once (in column bands of about [`RESULT_BUDGET`] bytes of floats), so the wide halo of a large
 /// radius is read once rather than around every tile. Pixels beyond `extent` repeat its edge, as
 /// [`Image::read_clamped`] does for tiles; without one the surface is read (transparent where empty).
-fn apply_box_blur(
+fn apply_strip_blur(
     mut out: Surface,
     surface: &Surface,
     area: Rect,
     extent: Option<Rect>,
     selection: Option<&Surface>,
-    boxes: &[usize],
+    filter: blur::StripFilter<'_>,
     ctl: &photocraft_raster::Interrupt,
 ) -> Option<Surface> {
     let fmt = surface.format();
     let n = fmt.channels();
-    let reach = i32::try_from(boxes.iter().map(|w| w / 2).sum::<usize>()).unwrap_or(i32::MAX);
-    let grown = area.inflate(reach);
-    let src = extent.map(|e| grown.intersect(&e)).filter(|r| !r.is_empty()).unwrap_or(grown);
-    let read = |r: Rect, buf: &mut Vec<f32>| surface.read_region_into(r, buf);
+    let src = match filter {
+        blur::StripFilter::Boxes(boxes) => {
+            let reach = i32::try_from(boxes.iter().map(|w| w / 2).sum::<usize>()).unwrap_or(i32::MAX);
+            let grown = area.inflate(reach);
+            extent.map(|e| grown.intersect(&e)).filter(|rect| !rect.is_empty()).unwrap_or(grown)
+        }
+        blur::StripFilter::Gaussian(_) => extent.map(|extent| extent.union(&area)).unwrap_or_else(|| area.union(&surface.content_bounds()).inflate(1)),
+    };
+    let read = |rect: Rect, buf: &mut Vec<f32>| {
+        if let blur::StripFilter::Gaussian(_) = filter
+            && let Some(extent) = extent.filter(|extent| !extent.is_empty() && rect.intersect(extent) != rect)
+        {
+            let inner = Rect::new(
+                rect.x0.clamp(extent.x0, extent.x1 - 1),
+                rect.y0.clamp(extent.y0, extent.y1 - 1),
+                (rect.x1 - 1).clamp(extent.x0, extent.x1 - 1) + 1,
+                (rect.y1 - 1).clamp(extent.y0, extent.y1 - 1) + 1,
+            );
+            let image = Image::read(surface, inner);
+            buf.clear();
+            for vertical in rect.y0..rect.y1 {
+                for horizontal in rect.x0..rect.x1 {
+                    buf.extend_from_slice(image.px(horizontal.clamp(inner.x0, inner.x1 - 1), vertical.clamp(inner.y0, inner.y1 - 1)));
+                }
+            }
+        } else {
+            surface.read_region_into(rect, buf);
+        }
+    };
     // Per output column: the horizontal results for every source row, plus the final samples.
     let column_bytes = (src.height() as usize + area.height() as usize) * n * std::mem::size_of::<f32>();
     let band = i32::try_from(RESULT_BUDGET / column_bytes.max(1)).unwrap_or(i32::MAX).max(blur::STRIP) / blur::STRIP * blur::STRIP;
     let bands: Vec<Rect> = (area.x0..area.x1).step_by(band as usize).map(|x| Rect::new(x, area.y0, x.saturating_add(band).min(area.x1), area.y1)).collect();
     for (i, b) in bands.iter().enumerate() {
-        let strips = blur::box_blur(src, &read, *b, n, fmt.alpha, boxes, ctl)?;
+        let strips = match filter {
+            blur::StripFilter::Boxes(boxes) => blur::box_blur(src, &read, *b, n, fmt.alpha, boxes, ctl)?,
+            blur::StripFilter::Gaussian(gaussian) => blur::gaussian_strips(src, &read, *b, n, fmt.alpha, gaussian, ctl)?,
+        };
         // Each strip lies in one tile column: the columns' tiles are written in parallel.
         let mut columns: Vec<(Surface, Vec<blur::Strip>)> = Vec::new();
         for (t, data) in strips {

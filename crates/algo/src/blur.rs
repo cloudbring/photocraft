@@ -10,6 +10,8 @@ use crate::{Ctx, FilterParams, RadialMethod, RadialQuality};
 #[cfg(test)]
 use self::motion as motion_rows;
 
+#[cfg(test)]
+mod gaussian_tests;
 pub(crate) mod motion_apply;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod motion_bench;
@@ -31,41 +33,11 @@ pub(crate) fn gaussian_kernel(sigma: f32) -> Vec<f32> {
     k.into_iter().map(|v| v / s).collect()
 }
 
-/// Gaussian Blur's kernel for `radius` (its standard deviation). Sampling the curve at whole
-/// pixels leaves a small radius almost no blur: at 0.3 the neighbour weight is about 0.004, a
-/// tenth of the spread asked for (#8544). Below 1 the sampling width is instead chosen so the
-/// kernel has exactly the variance `radius²`; from 1 up the sampled kernel is within about 0.4%
-/// of it (its 3σ truncation), so larger radii are unchanged and the blur grows smoothly from 0.05.
+/// Variance-calibrated sampled Gaussian, preserving PhotoCraft's identity below 0.05 px.
+/// Gaussian Blur uses this kernel below 8 px and the shared recursive filter above it.
+#[cfg(test)]
 pub(crate) fn gaussian_blur_kernel(radius: f32) -> Vec<f32> {
-    if !(0.05..1.0).contains(&radius) {
-        return gaussian_kernel(radius);
-    }
-    let variance = |k: &[f32]| {
-        let r = (k.len() / 2) as f32;
-        k.iter().enumerate().map(|(i, w)| w * (i as f32 - r).powi(2)).sum::<f32>()
-    };
-    // Sampled at `width` with one fixed half-width for every radius below 1: its variance then
-    // rises steadily with `width` (the search can't settle on a step where taps are added), and
-    // the blur grows without the dips a width chosen per radius made at 1/3 and 2/3. Three is the
-    // half-width `gaussian_kernel` uses at radius 1, so the hand-over is smooth too.
-    let half = 3;
-    let sampled = |width: f32| {
-        let k: Vec<f32> = (-half..=half).map(|i| (-(i * i) as f32 / (2.0 * width * width)).exp()).collect();
-        let s: f32 = k.iter().sum();
-        k.into_iter().map(|v| v / s).collect::<Vec<f32>>()
-    };
-    let target = radius * radius;
-    // The sampled kernel's variance only falls short of sigma², so the width lies above `radius`.
-    let (mut lo, mut hi) = (radius, radius + 1.0);
-    for _ in 0..40 {
-        let mid = 0.5 * (lo + hi);
-        if variance(&sampled(mid)) < target {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    sampled(0.5 * (lo + hi))
+    if radius < 0.05 { vec![1.0] } else { craft_blur::gaussian_kernel(radius).unwrap_or_else(|_| vec![1.0]) }
 }
 
 /// Separable convolution of `src` (premultiplied internally) for `out`.
@@ -143,17 +115,30 @@ fn conv_row<const N: usize>(src: &[f32], dst: &mut [f32], kernel: &[f32]) {
 }
 
 pub(crate) fn gaussian(src: &Image, out: Rect, ctx: &Ctx, radius: f32) -> Vec<f32> {
-    // Exact kernel for small radii; beyond that three box passes approximate the Gaussian with
-    // cost independent of the radius (Kovesi, "Fast almost-Gaussian filtering", 2010). Built
-    // from the description other devices run (`separable`), so they blur the same (#5772).
     match crate::separable::Separable::of(&FilterParams::GaussianBlur { radius }) {
-        Some(crate::separable::Separable::Boxes(boxes)) => box_passes(src, out, ctx.alpha, &boxes),
+        Some(crate::separable::Separable::Recursive(_)) => {
+            let Some(filter) = craft_blur::Gaussian::new(radius, craft_blur::Quality::Recursive).ok() else { return src.crop(out) };
+            let read = |rect, data: &mut Vec<f32>| *data = src.crop(rect);
+            let Some(strips) = gaussian_strips(src.rect, &read, out, src.ch, ctx.alpha, &filter, &Interrupt::NONE) else { return src.crop(out) };
+            let stride = out.width() as usize * src.ch;
+            let mut result = vec![0.0; stride * out.height() as usize];
+            for (rect, data) in strips {
+                let offset = (rect.x0 - out.x0) as usize * src.ch;
+                for (output, values) in result.chunks_exact_mut(stride).zip(data.chunks_exact(rect.width() as usize * src.ch)) {
+                    if let Some(output) = output.get_mut(offset..offset + values.len()) {
+                        output.copy_from_slice(values);
+                    }
+                }
+            }
+            result
+        }
         Some(crate::separable::Separable::Kernel(k)) => conv_sep(src, out, &k, &k, ctx.alpha),
-        None => src.crop(out),
+        _ => src.crop(out),
     }
 }
 
 /// Box widths (odd) whose `n`-fold convolution has standard deviation `sigma`.
+#[cfg(test)]
 fn boxes_for_gauss(sigma: f32, n: usize) -> Vec<usize> {
     let nf = n as f32;
     let w_ideal = (12.0 * sigma * sigma / nf + 1.0).sqrt();
@@ -172,7 +157,6 @@ fn boxes_for_gauss(sigma: f32, n: usize) -> Vec<usize> {
 /// direct kernel (small radii, where the kernel is quicker).
 pub(crate) fn box_widths(params: &FilterParams) -> Option<Vec<usize>> {
     match *params {
-        FilterParams::GaussianBlur { radius } if radius > 4.0 => Some(boxes_for_gauss(radius, 3)),
         FilterParams::BoxBlur { radius } => {
             let r = radius.max(0.0).round() as usize;
             (r > 4).then(|| vec![2 * r + 1])
@@ -293,6 +277,131 @@ pub(crate) const STRIP: i32 = 64;
 
 /// Samples of a column strip of an output area.
 pub(crate) type Strip = (Rect, Vec<f32>);
+
+pub(crate) enum StripFilter<'a> {
+    Boxes(&'a [usize]),
+    Gaussian(&'a craft_blur::Gaussian),
+}
+
+pub(crate) fn gaussian_strips(
+    src: Rect,
+    read: &(dyn Fn(Rect, &mut Vec<f32>) + Sync),
+    out: Rect,
+    channels: usize,
+    alpha: bool,
+    filter: &craft_blur::Gaussian,
+    ctl: &Interrupt,
+) -> Option<Vec<Strip>> {
+    use craft_blur::{Cancel, Edge, Scratch, Shape};
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    if src.is_empty() || out.is_empty() || channels == 0 {
+        return None;
+    }
+    let width = out.width() as usize;
+    let height = src.height() as usize;
+    let stride = width.checked_mul(channels)?;
+    let count = height.checked_mul(stride)?;
+    let mut horizontal = Vec::new();
+    horizontal.try_reserve_exact(count).ok()?;
+    horizontal.resize(count, 0.0f32);
+    let failed = AtomicBool::new(false);
+    let cancel = || ctl.cancelled() || failed.load(Ordering::Relaxed);
+    par_rows(&mut horizontal, width.checked_mul(ROWS_PER_TASK)?, channels, |task, chunk| {
+        let rows = chunk.len() / stride;
+        let top = src.y0 + (task * ROWS_PER_TASK) as i32;
+        let mut values = Vec::new();
+        read(Rect::new(src.x0, top, src.x1, top + rows as i32), &mut values);
+        premultiply(&mut values, channels, alpha);
+        let mut scratch = Scratch::default();
+        let result = if channels <= 4 {
+            Shape::new(src.width() as usize, rows, channels)
+                .and_then(|shape| filter.filter_rows(&mut values, shape, Edge::Clamp, &mut scratch, Cancel::Hook(&cancel)))
+        } else {
+            filter_planes(&mut values, src.width() as usize, rows, channels, filter, &mut scratch, Cancel::Hook(&cancel), false)
+        };
+        if result.is_err() {
+            failed.store(true, Ordering::Relaxed);
+            return;
+        }
+        let source_stride = src.width() as usize * channels;
+        for (row, output) in chunk.chunks_exact_mut(stride).enumerate() {
+            for (column, pixel) in output.chunks_exact_mut(channels).enumerate() {
+                let source_column = (out.x0 + column as i32).clamp(src.x0, src.x1 - 1) - src.x0;
+                let offset = row * source_stride + source_column as usize * channels;
+                let Some(source) = values.get(offset..offset + channels) else {
+                    failed.store(true, Ordering::Relaxed);
+                    return;
+                };
+                pixel.copy_from_slice(source);
+            }
+        }
+    });
+    if cancel() {
+        return None;
+    }
+    let rectangles: Vec<Rect> = strips(out).collect();
+    let result = par_map(rectangles.len(), |index| {
+        let rect = rectangles[index];
+        let strip_width = rect.width() as usize;
+        let row_samples = strip_width.checked_mul(channels)?;
+        let samples = height.checked_mul(row_samples)?;
+        let mut values = Vec::new();
+        values.try_reserve_exact(samples).ok()?;
+        let left = (rect.x0 - out.x0) as usize * channels;
+        for row in horizontal.chunks_exact(stride) {
+            values.extend_from_slice(row.get(left..left + row_samples)?);
+        }
+        let mut scratch = Scratch::default();
+        if channels <= 4 {
+            let mut rows: Vec<&mut [f32]> = values.chunks_exact_mut(row_samples).collect();
+            filter.filter_columns(&mut rows, channels, Edge::Clamp, &mut scratch, Cancel::Hook(&cancel)).ok()?;
+        } else {
+            filter_planes(&mut values, strip_width, height, channels, filter, &mut scratch, Cancel::Hook(&cancel), true).ok()?;
+        }
+        let mut output = Vec::new();
+        output.try_reserve_exact((out.height() as usize).checked_mul(row_samples)?).ok()?;
+        for vertical in out.y0..out.y1 {
+            let row = (vertical.clamp(src.y0, src.y1 - 1) - src.y0) as usize;
+            output.extend_from_slice(values.get(row * row_samples..(row + 1) * row_samples)?);
+        }
+        unpremultiply(&mut output, channels, alpha);
+        Some((rect, output))
+    });
+    if cancel() { None } else { result.into_iter().collect() }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn filter_planes(
+    values: &mut [f32],
+    width: usize,
+    height: usize,
+    channels: usize,
+    filter: &craft_blur::Gaussian,
+    scratch: &mut craft_blur::Scratch,
+    cancel: craft_blur::Cancel<'_>,
+    vertical: bool,
+) -> Result<(), craft_blur::Error> {
+    let shape = craft_blur::Shape::new(width, height, 1)?;
+    let mut plane = Vec::new();
+    plane.try_reserve_exact(shape.samples()).map_err(|_| craft_blur::Error::Allocation)?;
+    for channel in 0..channels {
+        plane.clear();
+        plane.extend(values.chunks_exact(channels).filter_map(|pixel| pixel.get(channel).copied()));
+        if vertical {
+            let mut rows: Vec<&mut [f32]> = plane.chunks_exact_mut(width).collect();
+            filter.filter_columns(&mut rows, 1, craft_blur::Edge::Clamp, scratch, cancel)?;
+        } else {
+            filter.filter_rows(&mut plane, shape, craft_blur::Edge::Clamp, scratch, cancel)?;
+        }
+        for (pixel, value) in values.chunks_exact_mut(channels).zip(&plane) {
+            if let Some(output) = pixel.get_mut(channel) {
+                *output = *value;
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Box blurs of the given (odd) widths, one after another along each axis, of the `n`-channel
 /// pixels of `src` extended beyond it by repeating its edge pixels (alpha-weighted when `alpha`).
