@@ -1,44 +1,22 @@
 //! ⌘F command palette: fuzzy search over every menu command and tool.
 
+use craft_fuzzy::{Matcher, Normalization};
 use egui::{Align2, Color32, CornerRadius, RichText, Sense, Stroke, vec2};
+use std::collections::HashMap;
 
 use crate::theme::{self, Tokens};
 use crate::{PhotocraftApp, icons};
 
-/// Case-insensitive subsequence match score (higher is better); None = no match.
-pub fn fuzzy_score(query: &str, text: &str) -> Option<i32> {
-    if query.is_empty() {
-        return Some(0);
-    }
-    let t: Vec<char> = text.to_lowercase().chars().collect();
-    let mut score = 0;
-    let mut ti = 0;
-    let mut last = None;
-    for qc in query.to_lowercase().chars() {
-        let mut found = false;
-        while ti < t.len() {
-            if t[ti] == qc {
-                score += if last == Some(ti.wrapping_sub(1)) { 8 } else { 1 };
-                if ti == 0 || t[ti - 1] == ' ' {
-                    score += 5;
-                }
-                last = Some(ti);
-                ti += 1;
-                found = true;
-                break;
-            }
-            ti += 1;
-        }
-        if !found {
-            return None;
-        }
-    }
-    Some(score - (t.len() as i32 / 8))
+type Cache = HashMap<String, Matcher>;
+type Hit = (i64, String, String, Option<String>, bool, Vec<usize>);
+
+fn match_text(cache: &mut Cache, query: &str, text: String) -> Option<craft_fuzzy::Match> {
+    cache.entry(text.clone()).or_insert_with(|| Matcher::new(text, Normalization::CaseInsensitive)).match_query(query)
 }
 
 /// Bonus that puts a command or tool whose name is exactly the query ahead of every fuzzy match
 /// ("settings" finds Settings before Color Settings).
-fn exact_bonus(query: &str, names: &[&str]) -> i32 {
+fn exact_bonus(query: &str, names: &[&str]) -> i64 {
     let q = query.trim();
     if !q.is_empty() && names.iter().any(|n| n.trim_end_matches('…').trim().to_lowercase() == q.to_lowercase()) { 1000 } else { 0 }
 }
@@ -75,7 +53,7 @@ fn push_recent(list: &mut Vec<String>, id: &str, cap: usize) {
 
 /// The empty-query hits: the recent commands as rows, newest first (UI-217-7). Ids that are
 /// no longer menu commands are skipped.
-fn recent_hits(recents: &[String], menus: &[crate::menus::MenuItem], lang: crate::i18n::Lang) -> Vec<(i32, String, String, Option<String>, bool)> {
+fn recent_hits(recents: &[String], menus: &[crate::menus::MenuItem], lang: crate::i18n::Lang) -> Vec<Hit> {
     recents
         .iter()
         .enumerate()
@@ -84,11 +62,12 @@ fn recent_hits(recents: &[String], menus: &[crate::menus::MenuItem], lang: crate
             let path = m.path.iter().map(|p| crate::i18n::tr(lang, p)).collect::<Vec<_>>().join(" › ");
             let label = crate::i18n::tr_id(lang, &m.id, &m.label);
             Some((
-                1000 - i as i32,
+                1000 - i as i64,
                 m.id.clone(),
                 label.trim_end_matches('…').to_string(),
                 Some(path + &m.shortcut.as_ref().map(|s| format!("   {}", crate::shortcuts::pretty(s))).unwrap_or_default()),
                 m.enabled,
+                Vec::new(),
             ))
         })
         .collect()
@@ -96,7 +75,7 @@ fn recent_hits(recents: &[String], menus: &[crate::menus::MenuItem], lang: crate
 
 /// The menu commands matching `q`, as palette rows. Separators are not commands: they would
 /// match on their menu path and list as blank "---" rows (#2479).
-fn menu_hits(menus: Vec<crate::menus::MenuItem>, q: &str, lang: crate::i18n::Lang) -> Vec<(i32, String, String, Option<String>, bool)> {
+fn menu_hits(menus: Vec<crate::menus::MenuItem>, q: &str, lang: crate::i18n::Lang, cache: &mut Cache) -> Vec<Hit> {
     menus
         .into_iter()
         .filter(|m| m.label != "---")
@@ -105,13 +84,15 @@ fn menu_hits(menus: Vec<crate::menus::MenuItem>, q: &str, lang: crate::i18n::Lan
             let path = m.path.iter().map(|p| crate::i18n::tr(lang, p)).collect::<Vec<_>>().join(" › ");
             let label = crate::i18n::tr_id(lang, &m.id, &m.label);
             // Match what is shown and the English name (commands are documented in English).
-            let s = fuzzy_score(q, &format!("{label} {path} {} {path_en}", m.label))? + exact_bonus(q, &[label, &m.label]);
+            let matched = match_text(cache, q, format!("{label} {path} {} {path_en}", m.label))?;
+            let s = matched.score + exact_bonus(q, &[label, &m.label]);
             Some((
                 s,
                 m.id,
                 label.trim_end_matches('…').to_string(),
                 Some(path + &m.shortcut.map(|s| format!("   {}", crate::shortcuts::pretty(&s))).unwrap_or_default()),
                 m.enabled,
+                matched.positions,
             ))
         })
         .collect()
@@ -172,21 +153,24 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
                     let empty = q.trim().is_empty();
                     // An empty query lists the recently run commands (UI-217-7); with none (or a
                     // fresh session) it falls back to the full fuzzy list, as before.
-                    let mut hits: Vec<(i32, String, String, Option<String>, bool)> = if empty { recent_hits(&recents, &menus, lang) } else { Vec::new() };
+                    let mut hits: Vec<Hit> = if empty { recent_hits(&recents, &menus, lang) } else { Vec::new() };
                     if !empty || hits.is_empty() {
-                        hits.extend(menu_hits(menus, &q, lang));
+                        let mut cache: Cache = ui.data_mut(|d| d.remove_temp(egui::Id::unique("palette-matcher-cache")).unwrap_or_default());
+                        hits.extend(menu_hits(menus, &q, lang, &mut cache));
                         for tool in crate::state::Tool::ALL {
-                            if let Some(s) = fuzzy_score(&q, &format!("{} {}", tl!(tool.label()), tool.label())) {
-                                let s = s + exact_bonus(&q, &[tl!(tool.label()).as_ref(), tool.label()]);
+                            if let Some(matched) = match_text(&mut cache, &q, format!("{} {}", tl!(tool.label()), tool.label())) {
+                                let s = matched.score + exact_bonus(&q, &[tl!(tool.label()).as_ref(), tool.label()]);
                                 hits.push((
                                     s + 2,
                                     format!("tool:{tool:?}"),
                                     tl!(tool.label()).into(),
                                     Some(format!("{}   {}", crate::i18n::tr(lang, "Tool"), tool.key())),
                                     true,
+                                    matched.positions,
                                 ));
                             }
                         }
+                        ui.data_mut(|d| d.insert_temp(egui::Id::unique("palette-matcher-cache"), cache));
                     }
                     hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.2.cmp(&b.2)));
                     hits.truncate(12);
@@ -210,13 +194,23 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
                     if hits.is_empty() {
                         ui.label(RichText::new(tl!("No matching commands")).color(t.text_faint));
                     }
-                    for (i, (_, id, label, detail, enabled)) in hits.iter().enumerate() {
+                    for (i, (_, id, label, detail, enabled, positions)) in hits.iter().enumerate() {
                         let (rect, resp) = ui.allocate_exact_size(vec2(width, 32.0), Sense::click());
                         if i == sel || resp.hovered() {
                             ui.painter().rect_filled(rect, t.radius_sm, if i == sel { t.accent_soft } else { t.hover });
                         }
                         let color = if *enabled { t.text } else { t.text_faint };
-                        ui.painter().text(rect.left_center() + vec2(12.0, 0.0), Align2::LEFT_CENTER, label, theme::medium(13.0), color);
+                        let mut job = egui::text::LayoutJob::default();
+                        for (index, character) in label.chars().enumerate() {
+                            let highlight = *enabled && positions.contains(&index);
+                            job.append(
+                                &character.to_string(),
+                                0.0,
+                                egui::TextFormat { font_id: theme::medium(13.0), color: if highlight { t.accent } else { color }, ..Default::default() },
+                            );
+                        }
+                        let galley = ui.painter().layout_job(job);
+                        ui.painter().galley(rect.left_center() + vec2(12.0, -galley.size().y / 2.0), galley, color);
                         if let Some(d) = detail {
                             ui.painter().text(rect.right_center() - vec2(12.0, 0.0), Align2::RIGHT_CENTER, d, egui::FontId::proportional(11.5), t.text_faint);
                         }
@@ -264,7 +258,7 @@ mod tests {
     use egui_kittest::Harness;
     use serde_json::json;
 
-    use super::{exact_bonus, fuzzy_score, push_recent};
+    use super::{Cache, exact_bonus, match_text, push_recent};
     use crate::PhotocraftApp;
 
     #[test]
@@ -347,7 +341,7 @@ mod tests {
         let menus = crate::menus::menu_items(&app);
         assert!(menus.iter().any(|m| m.label == "---"), "the menus have separators to filter");
         for q in ["f", "file", "filter", "", "-"] {
-            let hits = super::menu_hits(menus.clone(), q, crate::i18n::Lang::EN);
+            let hits = super::menu_hits(menus.clone(), q, crate::i18n::Lang::EN, &mut Cache::new());
             assert!(!hits.is_empty(), "{q:?} still matches commands");
             assert!(hits.iter().all(|h| h.1 != "---" && h.2 != "---"), "{q:?} lists a separator");
         }
@@ -355,6 +349,8 @@ mod tests {
 
     #[test]
     fn fuzzy_ranks_prefix_and_contiguous_higher() {
+        let mut cache = Cache::new();
+        let mut fuzzy_score = |q: &str, text: &str| match_text(&mut cache, q, text.to_string()).map(|m| m.score);
         assert!(fuzzy_score("hue", "Hue/Saturation…").unwrap() > fuzzy_score("hue", "Channel Mixer Hue").unwrap_or(-99));
         assert!(fuzzy_score("gblur", "Gaussian Blur").is_some());
         assert!(fuzzy_score("xyz", "Gaussian Blur").is_none());
@@ -364,12 +360,116 @@ mod tests {
     /// Typing a command's exact name ranks it first, even when a longer name scores the same.
     #[test]
     fn exact_name_ranks_first() {
+        let mut cache = Cache::new();
+        let mut fuzzy_score = |q: &str, text: &str| match_text(&mut cache, q, text.to_string()).map(|m| m.score);
         let settings = fuzzy_score("settings", "Settings Edit › Preferences Settings Edit › Preferences").unwrap() + exact_bonus("settings", &["Settings"]);
         let color = fuzzy_score("settings", "Color Settings… Edit Color Settings… Edit").unwrap() + exact_bonus("settings", &["Color Settings…"]);
         assert!(settings > color);
         assert_eq!(exact_bonus("Color settings", &["Color Settings…"]), 1000);
         assert_eq!(exact_bonus(" ", &[""]), 0);
         assert_eq!(exact_bonus("set", &["Settings"]), 0);
+    }
+
+    fn old_score(query: &str, text: &str) -> Option<i64> {
+        let text: Vec<char> = text.to_lowercase().chars().collect();
+        let mut score = 0;
+        let mut index = 0;
+        let mut last = None;
+        for character in query.to_lowercase().chars() {
+            while index < text.len() && text[index] != character {
+                index += 1;
+            }
+            if index == text.len() {
+                return None;
+            }
+            score += if last == Some(index.wrapping_sub(1)) { 8 } else { 1 };
+            if index == 0 || text[index - 1] == ' ' {
+                score += 5;
+            }
+            last = Some(index);
+            index += 1;
+        }
+        Some(score - text.len() as i64 / 8)
+    }
+
+    const QUERIES: [&str; 20] = [
+        "op", "ps", "ab", "gblur", "hue", "levels", "layer", "mask", "new", "save", "export", "brush", "crop", "select", "zoom", "rotate", "color", "type",
+        "undo", "filter",
+    ];
+
+    fn catalogue() -> Vec<(String, String, String)> {
+        let app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+        let mut items: Vec<_> = crate::menus::menu_items(&app)
+            .into_iter()
+            .filter(|item| item.label != "---")
+            .map(|item| {
+                let path = item.path.join(" › ");
+                let text = format!("{} {path} {} {path}", item.label, item.label);
+                (item.id, item.label, text)
+            })
+            .collect();
+        items.extend(crate::state::Tool::ALL.iter().map(|tool| {
+            let label = tool.label().to_string();
+            (format!("tool:{tool:?}"), label.clone(), format!("{label} {label}"))
+        }));
+        items
+    }
+
+    #[test]
+    fn catalogue_ranking_changes_are_deterministic() {
+        let items = catalogue();
+        let mut cache = Cache::new();
+        let mut changed = 0;
+        for query in QUERIES {
+            let mut old: Vec<_> = items
+                .iter()
+                .filter_map(|(id, label, text)| {
+                    old_score(query, text).map(|score| (score + exact_bonus(query, &[label]) + i64::from(id.starts_with("tool:")) * 2, label, id))
+                })
+                .collect();
+            let mut new: Vec<_> = items
+                .iter()
+                .filter_map(|(id, label, text)| {
+                    match_text(&mut cache, query, text.clone())
+                        .map(|matched| (matched.score + exact_bonus(query, &[label]) + i64::from(id.starts_with("tool:")) * 2, label, id))
+                })
+                .collect();
+            old.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(right.1)));
+            new.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(right.1)));
+            let old_ids: Vec<_> = old.iter().map(|hit| hit.2).collect();
+            let new_ids: Vec<_> = new.iter().map(|hit| hit.2).collect();
+            if old_ids != new_ids {
+                changed += 1;
+                println!("{query}: old={old_ids:?} new={new_ids:?}");
+            }
+        }
+        println!("changed queries: {changed}/{}", QUERIES.len());
+        assert!(changed > 0);
+    }
+
+    #[test]
+    #[ignore = "manual palette latency benchmark"]
+    fn catalogue_keystroke_latency() {
+        let items = catalogue();
+        let queries = QUERIES.into_iter().cycle().take(100).collect::<Vec<_>>();
+        let start = std::time::Instant::now();
+        for query in &queries {
+            for (_, _, text) in &items {
+                std::hint::black_box(old_score(query, text));
+            }
+        }
+        let old = start.elapsed();
+        let mut cache = Cache::new();
+        for (_, _, text) in &items {
+            cache.entry(text.clone()).or_insert_with(|| craft_fuzzy::Matcher::new(text.clone(), craft_fuzzy::Normalization::CaseInsensitive));
+        }
+        let start = std::time::Instant::now();
+        for query in &queries {
+            for (_, _, text) in &items {
+                std::hint::black_box(cache.get(text).and_then(|matcher| matcher.match_query(query)));
+            }
+        }
+        println!("{} items × 100 queries: old {old:?}, new {:?}", items.len(), start.elapsed());
     }
 
     /// #536: Edit › Search → "Keyboard Shortcuts" must open the dialog, with and without a document.

@@ -1358,6 +1358,11 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
 
 [[package]]
+name = "craft-fuzzy"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F74-craft-fuzzy#f773bd66b17776f9af6a49ada0545e8ca991949c"
+
+[[package]]
 name = "craft-i18n"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
@@ -5417,6 +5422,7 @@ name = "photocraft-ui-egui"
 version = "0.20.1"
 dependencies = [
  "base64 0.23.1",
+ "craft-fuzzy",
  "craft-print",
  "craft-ui",
  "craft-update",

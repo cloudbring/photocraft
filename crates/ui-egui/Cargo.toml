@@ -8,6 +8,8 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+# TODO(#74): repoint to the canonical craft-libs revision once merged.
+craft-fuzzy = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/74-craft-fuzzy" }
 craft-print = { workspace = true }
 craft-ui = { workspace = true }
 photocraft-geom = { workspace = true }
