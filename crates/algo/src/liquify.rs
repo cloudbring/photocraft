@@ -20,6 +20,7 @@
 //! bilinear source on a downsampled RGBA copy, re-rendered only where a dab changed things.
 
 use crate::par;
+use photocraft_color::SampleType;
 use photocraft_geom::Rect;
 use photocraft_raster::Surface;
 use serde::{Deserialize, Serialize};
@@ -674,10 +675,14 @@ fn cubic_taps(g: f64, len: usize) -> [(usize, f64); 4] {
 /// Resamples `src` through the field: inside `field.bounds` each pixel shows the source at
 /// `p + d(p)` (bicubic field, bicubic premultiplied source, edge pixels repeat past the field
 /// bounds); everything outside the bounds is kept. Same format as `src`.
+/// Float colors retain signed values, HDR and Catmull-Rom overshoot. Colors are sampled
+/// premultiplied, then divided by the reconstructed alpha clamped to 0..1; zero alpha
+/// produces zero color. Integer colors retain the historical 0..1 clipping policy.
 pub fn apply_liquify(src: &Surface, field: &LiquifyField) -> Surface {
     let fmt = src.format();
     let n = fmt.channels();
     let alpha = fmt.alpha;
+    let hdr = fmt.sample == SampleType::F32;
     let b = field.bounds;
     let mut out = src.clone();
     if field.is_identity() || b.is_empty() {
@@ -779,11 +784,12 @@ pub fn apply_liquify(src: &Surface, field: &LiquifyField) -> Surface {
                     let al = acc[n - 1].clamp(0.0, 1.0);
                     outp[o + n - 1] = al as f32;
                     for c in 0..n - 1 {
-                        outp[o + c] = if al > 0.0 { (acc[c] / al).clamp(0.0, 1.0) as f32 } else { 0.0 };
+                        let color = if al > 0.0 { acc[c] / al } else { 0.0 };
+                        outp[o + c] = if hdr { color as f32 } else { color.clamp(0.0, 1.0) as f32 };
                     }
                 } else {
                     for c in 0..n {
-                        outp[o + c] = acc[c].clamp(0.0, 1.0) as f32;
+                        outp[o + c] = if hdr { acc[c] as f32 } else { acc[c].clamp(0.0, 1.0) as f32 };
                     }
                 }
             }

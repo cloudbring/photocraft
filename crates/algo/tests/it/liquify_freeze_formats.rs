@@ -40,6 +40,26 @@ fn freeze_left() -> LiquifyStroke {
     stroke
 }
 
+#[test]
+fn integer_warp_golden_hashes() {
+    let expected = [0x041ad4e40ebd963a, 0xd5fbae8111150d54, 0x38b2b3b57c85c349, 0x8f47df71f0f64aaa, 0x2e3b046673f72571, 0x3242fbe80a9b6983];
+    let mut index = 0;
+    for sample in [SampleType::U8, SampleType::U16] {
+        for mode in [ColorMode::Grayscale, ColorMode::Rgb, ColorMode::Cmyk] {
+            let source = source(mode, sample);
+            let field = LiquifyField::from_strokes(
+                bounds(),
+                2.5,
+                &[warp(&[[238.0, 20.0], [261.0, 28.0]], 64.0, 55.0), freeze_left(), warp(&[[268.0, 32.0], [252.0, 32.0]], 48.0, 80.0)],
+            );
+            let pixels = apply_liquify(&source, &field).read_region(bounds());
+            let hash = pixels.iter().fold(0xcbf29ce484222325u64, |hash, value| (hash ^ u64::from(value.to_bits())).wrapping_mul(0x100000001b3));
+            assert_eq!(hash, expected[index], "{sample:?} {mode:?}");
+            index += 1;
+        }
+    }
+}
+
 fn check_frozen_output(prior_warp: bool) {
     for mode in [ColorMode::Grayscale, ColorMode::Rgb, ColorMode::Cmyk] {
         for sample in [SampleType::U8, SampleType::U16, SampleType::F32] {

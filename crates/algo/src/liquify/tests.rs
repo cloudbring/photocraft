@@ -503,7 +503,10 @@ fn replay_is_deterministic_and_depths_agree() {
     let b = LiquifyField::from_strokes(bounds(), 2.0, std::slice::from_ref(&s));
     assert_eq!(a, b);
     let r8 = apply_liquify(&sample(SampleType::U8), &a);
-    let r32 = apply_liquify(&sample(SampleType::F32), &a);
+    let float = apply_liquify(&sample(SampleType::F32), &a);
+    let mut r32 = Surface::new(float.format());
+    let clipped: Vec<_> = float.read_region(bounds()).into_iter().map(|value| value.clamp(0.0, 1.0)).collect();
+    r32.write_region(bounds(), &clipped);
     assert!(worst(&r8, &r32, bounds()) < 2.0 / 255.0 + 1e-4);
 }
 
