@@ -1,5 +1,53 @@
 use super::*;
 use photocraft_doc::{Color, ColorMode, Layer, SampleType, Size};
+use proptest::prelude::*;
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    #[test]
+    fn random_raster_scripts_undo_and_redo_without_changing_snapshots(
+        script in prop::collection::vec((-3i32..4, -3i32..4, any::<u8>(), any::<bool>()), 1..32),
+        depth in prop::sample::select(vec![SampleType::U8, SampleType::U16, SampleType::F32])
+    ) {
+        let document = Document::with_background("persistent history", Size::new(64, 64), ColorMode::Rgb, depth, Color::WHITE);
+        let mut current = Arc::new(document);
+        let mut history = History { max_states: script.len() + 1, ..History::default() };
+        let mut states = vec![current.clone()];
+        let signature = |document: &Document| {
+            let surface = document.layers[0].surface().unwrap();
+            (surface.tile_count(), (-3..4).flat_map(|tx| (-3..4).map(move |ty| surface.pixel(tx * 256, ty * 256))).collect::<Vec<_>>())
+        };
+        let mut signatures = vec![signature(&current)];
+        for (tx, ty, value, remove) in script {
+            edit(&mut history, &mut current, "Tile edit", |document| {
+                let surface = document.layers[0].surface_mut().unwrap();
+                if remove {
+                    surface.take_tiles(photocraft_doc::Rect::new(tx * 256, ty * 256, (tx + 1) * 256, (ty + 1) * 256));
+                } else {
+                    surface.write_pixel(tx * 256, ty * 256, &[f32::from(value) / 255.0, 0.0, 0.0, 1.0]);
+                    surface.prune();
+                }
+            });
+            states.push(current.clone());
+            signatures.push(signature(&current));
+        }
+        for (state, expected) in states.iter().zip(signatures) {
+            prop_assert_eq!(signature(state), expected);
+        }
+        let final_state = current.clone();
+        for expected in states.iter().rev().skip(1) {
+            current = history.undo(current).unwrap().0;
+            prop_assert_eq!(&current, expected);
+        }
+        prop_assert!(history.undo(current.clone()).is_none());
+        for expected in states.iter().skip(1) {
+            current = history.redo(current).unwrap().0;
+            prop_assert_eq!(&current, expected);
+        }
+        prop_assert_eq!(current, final_state);
+    }
+}
 
 fn base() -> Document {
     Document::with_background("h", Size::new(64, 64), ColorMode::Rgb, SampleType::U8, Color::WHITE)

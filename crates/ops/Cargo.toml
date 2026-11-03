@@ -9,3 +9,6 @@ workspace = true
 
 [dependencies]
 photocraft-doc = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

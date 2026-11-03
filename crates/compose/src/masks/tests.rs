@@ -272,16 +272,18 @@ fn replacement_and_purge_release_accounted_bytes_and_tile_references() {
     let second_tile = second.tiles().next().unwrap().1.clone();
     let mut cache = Cache::default();
     cache.insert(1, first.clone(), None, first_bytes, CACHE_BUDGET, cache.generation);
-    assert_eq!(Arc::strong_count(&first_tile), 3);
+    drop(first);
+    assert_eq!(Arc::strong_count(&first_tile), 2);
     cache.insert(1, second.clone(), None, second_bytes, CACHE_BUDGET, cache.generation);
+    drop(second);
     assert_eq!(cache.bytes, second_bytes);
     assert_eq!(cache.map.len(), 1);
-    assert_eq!(Arc::strong_count(&first_tile), 2);
-    assert_eq!(Arc::strong_count(&second_tile), 3);
+    assert_eq!(Arc::strong_count(&first_tile), 1);
+    assert_eq!(Arc::strong_count(&second_tile), 2);
     assert_eq!(cache.clear(), second_bytes);
     assert_eq!(cache.bytes, 0);
     assert!(cache.map.is_empty());
-    assert_eq!(Arc::strong_count(&second_tile), 2);
+    assert_eq!(Arc::strong_count(&second_tile), 1);
     assert_eq!(cache.clear(), 0);
 }
 

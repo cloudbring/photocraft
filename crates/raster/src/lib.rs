@@ -1,8 +1,9 @@
 //! Sparse, copy-on-write tiled surfaces in any [`PixelFormat`].
 //!
 //! A [`Surface`] is an infinite plane of 256×256 tiles. Missing tiles read as the surface's
-//! default pixel (transparent for layers, white for "reveal all" masks). Tiles are `Arc`-shared,
-//! so cloning a surface is O(tiles) and mutation copies only the touched tiles. That makes
+//! default pixel (transparent for layers, white for "reveal all" masks). The tile directory and
+//! pixel tiles are `Arc`-shared, so cloning is O(1) in tile count; mutation copies only the
+//! touched directory paths and tiles. That makes
 //! undo snapshots, background jobs and autosave cheap.
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
@@ -10,10 +11,11 @@
 mod interrupt;
 pub use interrupt::{Cancelled, Interrupt};
 pub mod scratch;
+mod tile_dir;
 
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
+use tile_dir::TileDir;
 
 use photocraft_color::{ColorMode, PixelFormat, SampleType, read_sample, read_samples, write_sample};
 use photocraft_geom::{Rect, TILE_SIZE, TileCoord};
@@ -172,7 +174,7 @@ fn last_difference(a: &[u8], b: &[u8]) -> Option<usize> {
 pub struct Surface {
     format: PixelFormat,
     default_pixel: Box<[u8]>,
-    tiles: BTreeMap<TileCoord, Arc<Tile>>,
+    tiles: TileDir,
 }
 
 /// Use stack storage when it fits, otherwise reuse a dynamically sized sample buffer.
@@ -406,7 +408,7 @@ impl Surface {
 
     /// Transparent/zero surface.
     pub fn new(format: PixelFormat) -> Self {
-        Self { format, default_pixel: vec![0u8; format.bytes_per_pixel()].into_boxed_slice(), tiles: BTreeMap::new() }
+        Self { format, default_pixel: vec![0u8; format.bytes_per_pixel()].into_boxed_slice(), tiles: TileDir::new() }
     }
 
     /// Surface whose untouched pixels read as `pixel` (normalised channel values).
@@ -448,7 +450,7 @@ impl Surface {
     pub fn tile_mut(&mut self, c: TileCoord) -> &mut Tile {
         let fmt = self.format;
         let dp = &self.default_pixel;
-        let arc = self.tiles.entry(c).or_insert_with(|| Arc::new(Tile::filled(&fmt, dp)));
+        let arc = self.tiles.get_or_insert_with(c, || Arc::new(Tile::filled(&fmt, dp)));
         Arc::make_mut(arc)
     }
 
@@ -539,7 +541,8 @@ impl Surface {
     pub fn share_uniform_tiles(&mut self, interner: &mut TileInterner) -> usize {
         let bpp = self.format.bytes_per_pixel();
         let mut saved = 0;
-        for t in self.tiles.values_mut() {
+        let mut replacements = Vec::new();
+        for (coord, t) in &self.tiles {
             let mut px = t.data.chunks_exact(bpp);
             let Some(p0) = px.next() else { continue };
             if !px.all(|p| p == p0) {
@@ -548,9 +551,10 @@ impl Surface {
             let shared = interner.tiles.entry(t.data.len()).or_default().entry(p0.to_vec()).or_insert_with(|| t.clone());
             if !Arc::ptr_eq(shared, t) {
                 saved += t.data.len();
-                *t = shared.clone();
+                replacements.push((*coord, shared.clone()));
             }
         }
+        self.put_tiles(replacements);
         saved
     }
 
@@ -975,7 +979,7 @@ impl Surface {
     /// `content` must hold every pixel that isn't the default one (`content_bounds`, say): only
     /// tiles it reaches are kept.
     pub fn translated(&self, dx: i32, dy: i32, content: Rect) -> Surface {
-        let mut out = Surface { format: self.format, default_pixel: self.default_pixel.clone(), tiles: BTreeMap::new() };
+        let mut out = Surface { format: self.format, default_pixel: self.default_pixel.clone(), tiles: TileDir::new() };
         let sources = || self.tiles.iter().filter(move |(c, _)| !c.rect().intersect(&content).is_empty());
         if dx % TILE_SIZE == 0 && dy % TILE_SIZE == 0 {
             let (tx, ty) = (dx / TILE_SIZE, dy / TILE_SIZE);
@@ -1123,7 +1127,7 @@ impl Surface {
         #[cfg(not(target_arch = "wasm32"))]
         {
             use rayon::prelude::*;
-            out.tiles = targets.into_par_iter().filter_map(build_target).collect();
+            out.tiles = targets.into_par_iter().filter_map(build_target).collect::<Vec<_>>().into_iter().collect();
         }
         #[cfg(target_arch = "wasm32")]
         {
