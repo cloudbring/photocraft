@@ -205,7 +205,8 @@ fn read_sample_body(r: &mut Rd, id: String, budget: &mut Budget) -> Result<AbrSa
     let layout = PlaneLayout { planes: 1, width: w as usize, height: h as usize, depth, version: Version::Psd };
     budget.spend(layout.decoded_len()?)?;
     let rest = r.take(r.left())?;
-    let data = decode_planes(compression, rest, &layout)?;
+    let encoded = if compression == Compression::Rle { crate::compression::rle_prefix(rest, &layout)? } else { rest };
+    let data = decode_planes(compression, encoded, &layout)?;
     Ok(AbrSample { id, width: w, height: h, depth, data })
 }
 

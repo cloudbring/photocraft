@@ -5343,10 +5343,12 @@ dependencies = [
 name = "photocraft-psd"
 version = "0.20.1"
 dependencies = [
+ "criterion",
  "encoding_rs",
  "flate2",
  "photocraft-psd",
  "proptest",
+ "rayon",
  "serde",
  "thiserror 2.0.21",
 ]
