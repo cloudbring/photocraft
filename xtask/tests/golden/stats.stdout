@@ -1,0 +1,37 @@
+crate                       files    lines #[test]  proptest!
+--------------------------------------------------------------
+photocraft                     47    16006     293          0
+photocraft-affinity            16     4778      48          2
+photocraft-algo               189    67601     799          0
+photocraft-automation          32     9585     130          0
+photocraft-cli                 16     3119      61          0
+photocraft-cms                 19     6462      83          0
+photocraft-codecs              88    30846     642          3
+photocraft-color                4     1557      30          0
+photocraft-compose             47    22401     418          2
+photocraft-doc                 15     5438      68          0
+photocraft-engine             477   179265    3170          0
+photocraft-format              25     9162     187          1
+photocraft-geom                 3     2019      35          0
+photocraft-gpu                 38    13654     157          0
+photocraft-heif                 1      529      10          0
+photocraft-io                 170    56901    1009          2
+photocraft-ipp                  2     1349      21          0
+photocraft-ops                  4     2069      40          0
+photocraft-paint               23    10128     141          0
+photocraft-plugins              8     1890      30          0
+photocraft-psd                 61    21951     458          6
+photocraft-raster               5     3113      58          1
+photocraft-raw                 50    16795     239          0
+photocraft-tablet               7     1239      19          0
+photocraft-testkit              4      356       8          0
+photocraft-text                36    17706     294          0
+photocraft-ui-egui            700   287561    4833          0
+photocraft-vector              11     5160      91          0
+photocraft-web                  4     1283      12          0
+photocraft-web-boot             1      467       7          0
+xtask                          13     6008      86          0
+--------------------------------------------------------------
+TOTAL                        2116   806398   13477         17
+
+(#[test] counts source attributes; macro-generated tests count once. Use --exact for harness counts.)

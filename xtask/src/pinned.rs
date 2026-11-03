@@ -13,7 +13,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::{root, run, sha256};
+use crate::{root, run};
 
 /// Generic User-Agent: no personal details in requests.
 pub const USER_AGENT: &str = "Photocraft-dev";
@@ -135,8 +135,8 @@ impl PinnedCorpus {
             // its backslash instead of being split into a fake `a/b` traversal component. Reject
             // anything that is not a sequence of plain names (absolute roots, `..`, etc.).
             let rel = rel_manifest_path(&f).ok_or_else(|| format!("unsafe corpus path {}", f.display()))?;
-            let bytes = std::fs::read(dir.join(&f)).map_err(|e| format!("read {rel}: {e}"))?;
-            out.push((sha256::hex(&bytes), format!("{prefix}{rel}")));
+            let hash = craft_xtask::sha256_hex(&dir.join(&f)).map_err(|e| format!("read {rel}: {e}"))?;
+            out.push((hash, format!("{prefix}{rel}")));
         }
         Ok(out)
     }
@@ -153,8 +153,8 @@ impl PinnedCorpus {
     fn mismatches(files: &[(String, String)], locate: impl Fn(&str) -> Option<PathBuf>) -> Vec<String> {
         files
             .iter()
-            .filter_map(|(hash, file)| match locate(file).map(std::fs::read) {
-                Some(Ok(bytes)) if sha256::hex(&bytes) == *hash => None,
+            .filter_map(|(hash, file)| match locate(file).as_deref().map(craft_xtask::sha256_hex) {
+                Some(Ok(actual)) if actual == *hash => None,
                 Some(Ok(_)) => Some(format!("{file}: sha256 mismatch")),
                 _ => Some(format!("{file}: missing")),
             })
@@ -262,8 +262,7 @@ impl PinnedCorpus {
             if self.subset {
                 // Re-hash the selected files at the new pins.
                 for (hash, file) in files.iter_mut() {
-                    let bytes = locate(file).map(std::fs::read).and_then(Result::ok).ok_or_else(|| format!("{file}: missing upstream"))?;
-                    *hash = sha256::hex(&bytes);
+                    *hash = locate(file).as_deref().and_then(|p| craft_xtask::sha256_hex(p).ok()).ok_or_else(|| format!("{file}: missing upstream"))?;
                 }
             }
             self.write_manifest(&mut files)?;
@@ -361,7 +360,7 @@ fn safe_dest_join(dest: &Path, rel: &str) -> Option<PathBuf> {
 
 /// Hex sha256 of a corpus file (reused by every corpus fetch, `xtask/pixls.sha256` included).
 fn file_hex(path: &std::path::Path) -> Option<String> {
-    std::fs::read(path).ok().map(|b| crate::sha256::hex(&b))
+    craft_xtask::sha256_hex(path).ok()
 }
 
 /// Fetches `corpus/pixls` — the raw.pixls.us camera files pinned in `corpus_pins::PIXLS_FILES` —

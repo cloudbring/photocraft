@@ -14,3 +14,5 @@ serde = { workspace = true }
 chrono = { workspace = true }
 # perf/budgets.toml and scorecard/*.toml (MIT OR Apache-2.0).
 toml = "1"
+# TODO: repoint to storytold/craft-libs after upstream merge
+craft-xtask = { git = "https://github.com/cloudbring/craft-libs", branch = "algo/integration" }

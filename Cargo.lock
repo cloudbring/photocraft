@@ -1358,6 +1358,14 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
 
 [[package]]
+name = "craft-hash"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#4acbbe26f475c3ad98a44a654553a5711929d6d3"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
 name = "craft-i18n"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955caffb5bee5997aebf7#c5a1cbfb5f9049f9270955caffb5bee5997aebf7"
@@ -1465,6 +1473,17 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/winprint.rs?rev=417ac3c4d14d3da5485a99c7d5ce8f05664ec312#417ac3c4d14d3da5485a99c7d5ce8f05664ec312"
 dependencies = [
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "craft-xtask"
+version = "0.1.0"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2Fintegration#4acbbe26f475c3ad98a44a654553a5711929d6d3"
+dependencies = [
+ "craft-hash",
+ "glob",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -9223,6 +9242,7 @@ name = "xtask"
 version = "0.20.1"
 dependencies = [
  "chrono",
+ "craft-xtask",
  "serde",
  "serde_json",
  "toml",

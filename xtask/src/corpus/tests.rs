@@ -59,8 +59,15 @@ impl Drop for Fixture {
     }
 }
 
+fn sha256_bytes(bytes: &[u8]) -> String {
+    let f = Fixture::new();
+    let p = f.0.join("bytes");
+    std::fs::write(&p, bytes).unwrap();
+    craft_xtask::sha256_hex(&p).unwrap()
+}
+
 fn fixture_manifest() -> String {
-    FIXTURE_FILES.iter().map(|(name, bytes)| format!("{}  {name}\n", crate::sha256::hex(bytes))).collect()
+    FIXTURE_FILES.iter().map(|(name, bytes)| format!("{}  {name}\n", sha256_bytes(bytes))).collect()
 }
 
 fn fixture_extract(_: &Path, files: &Path) -> Result<(), String> {
@@ -75,9 +82,7 @@ fn fixture_download(archive: &Path) -> Result<(), String> {
 }
 
 fn fixture_fetch(corpus: &Path) -> Result<(), String> {
-    fetch_pngsuite_in(corpus, &crate::sha256::hex(FIXTURE_ARCHIVE), &fixture_manifest(), fixture_download, fixture_extract, |from, to| {
-        std::fs::rename(from, to)
-    })
+    fetch_pngsuite_in(corpus, &sha256_bytes(FIXTURE_ARCHIVE), &fixture_manifest(), fixture_download, fixture_extract, |from, to| std::fs::rename(from, to))
 }
 
 #[test]
@@ -135,7 +140,7 @@ fn pngsuite_unexpected_or_truncated_archive_never_reaches_extractor() {
         f.old_cache();
         let e = fetch_pngsuite_in(
             &f.0,
-            &crate::sha256::hex(FIXTURE_ARCHIVE),
+            &sha256_bytes(FIXTURE_ARCHIVE),
             &fixture_manifest(),
             |a| std::fs::write(a, bad).map_err(|e| e.to_string()),
             |_, _| panic!("unverified archive reached extractor"),
@@ -167,7 +172,7 @@ fn pngsuite_download_or_extraction_failure_keeps_old_cache() {
     assert!(
         fetch_pngsuite_in(
             &f.0,
-            &crate::sha256::hex(FIXTURE_ARCHIVE),
+            &sha256_bytes(FIXTURE_ARCHIVE),
             &fixture_manifest(),
             fixture_download,
             |_, files| {
@@ -183,7 +188,7 @@ fn pngsuite_download_or_extraction_failure_keeps_old_cache() {
     for extra in [false, true] {
         let e = fetch_pngsuite_in(
             &f.0,
-            &crate::sha256::hex(FIXTURE_ARCHIVE),
+            &sha256_bytes(FIXTURE_ARCHIVE),
             &fixture_manifest(),
             fixture_download,
             |a, files| {
@@ -208,7 +213,7 @@ fn pngsuite_failed_installation_restores_old_cache() {
     for fail_backup in [false, true] {
         let f = Fixture::new();
         f.old_cache();
-        let e = fetch_pngsuite_in(&f.0, &crate::sha256::hex(FIXTURE_ARCHIVE), &fixture_manifest(), fixture_download, fixture_extract, |from, to| {
+        let e = fetch_pngsuite_in(&f.0, &sha256_bytes(FIXTURE_ARCHIVE), &fixture_manifest(), fixture_download, fixture_extract, |from, to| {
             if (fail_backup && from == f.cache()) || (!fail_backup && from.file_name().is_some_and(|n| n == "files")) {
                 Err(std::io::Error::other("injected rename failure"))
             } else {
@@ -225,7 +230,7 @@ fn pngsuite_failed_installation_restores_old_cache() {
 fn pngsuite_failed_rollback_retains_and_names_the_backup() {
     let f = Fixture::new();
     f.old_cache();
-    let e = fetch_pngsuite_in(&f.0, &crate::sha256::hex(FIXTURE_ARCHIVE), &fixture_manifest(), fixture_download, fixture_extract, |from, to| {
+    let e = fetch_pngsuite_in(&f.0, &sha256_bytes(FIXTURE_ARCHIVE), &fixture_manifest(), fixture_download, fixture_extract, |from, to| {
         if from == f.cache() { std::fs::rename(from, to) } else { Err(std::io::Error::other("injected install and rollback failure")) }
     })
     .unwrap_err();
@@ -242,7 +247,7 @@ fn pngsuite_reads_are_bounded_and_malformed_manifests_are_rejected() {
     let file = f.0.join("large");
     std::fs::File::create(&file).unwrap().set_len(PNGSUITE_MAX_ARCHIVE_BYTES + 1).unwrap();
     assert!(pngsuite_bytes(&file, PNGSUITE_MAX_ARCHIVE_BYTES).unwrap_err().contains("regular file"));
-    for malformed in ["", "invalid", "00  a.png", &format!("{}  ../outside\n", crate::sha256::hex(b""))] {
+    for malformed in ["", "invalid", "00  a.png", &format!("{}  ../outside\n", sha256_bytes(b""))] {
         assert!(verify_pngsuite(&f.0, malformed).is_err());
     }
 }

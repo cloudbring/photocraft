@@ -1,22 +1,19 @@
 //! Workspace tooling: `cargo xtask <command>`.
 //!
-//! Pure Rust (std + serde_json). External tools (`cargo`, `curl`, `tar`) are
+//! Shared tasks use `craft-xtask`. External tools (`cargo`, `curl`, `tar`) are
 //! invoked through `std::process::Command`.
 
 mod corpus;
 mod corpus_pins;
 mod i18n_coverage;
-mod ico;
-mod layers;
 mod perf;
 mod pinned;
 mod scorecard;
-mod sha256;
-mod stats;
-mod version;
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
+
+use craft_xtask::{Cargo, ico, layers, stats, version};
 
 const USAGE: &str = "\
 usage: cargo xtask <command>
@@ -56,6 +53,8 @@ commands:
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let rest: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
+    let task_args = args.get(1..).unwrap_or_default();
+    let stats_args = if rest.contains(&"--exact") { vec!["--exact".into()] } else { Vec::new() };
     let result = match args.first().map(String::as_str) {
         Some("layers") => cmd_layers(),
         Some("wasm") => cmd_wasm(),
@@ -63,13 +62,13 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("corpus") => corpus::cmd(&rest),
         Some("test-corpus") => corpus::test_cmd(&rest),
-        Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
+        Some("stats") => stats::run(&stats_config(&root()), &stats_args),
         Some("parity") => cmd_parity(),
         Some("i18n-coverage") => i18n_coverage::run(&root()),
         Some("perf") => perf::run(&root(), &rest),
         Some("scorecard") => scorecard::run(&root(), &rest),
-        Some("version") => version::run(&root(), &rest),
-        Some("ico") => ico::run(&rest),
+        Some("version") => version::run(&version_config(&root()), task_args),
+        Some("ico") => ico::run(&ico::Config::default(), task_args),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -87,7 +86,9 @@ fn main() -> ExitCode {
 
 /// Workspace root (parent of the xtask crate).
 pub fn root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("xtask has a parent dir").to_path_buf()
+    let dir = std::env::var_os("CARGO_MANIFEST_DIR").map(PathBuf::from).filter(|dir| dir.join("Cargo.toml").is_file());
+    let dir = dir.unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")));
+    dir.parent().unwrap_or(Path::new(".")).to_path_buf()
 }
 
 pub fn cargo() -> Command {
@@ -110,11 +111,101 @@ pub fn metadata() -> Result<serde_json::Value, String> {
     serde_json::from_slice(&out.stdout).map_err(|e| format!("cargo metadata: bad JSON: {e}"))
 }
 
+pub fn version_config(root: &Path) -> version::Config {
+    version::Config { cargo: Cargo { root: root.into(), ..Cargo::default() }, strict_prerelease: true, ..version::Config::default() }
+}
+
+pub fn stats_config(root: &Path) -> stats::Config {
+    stats::Config { cargo: Cargo { root: root.into(), ..Cargo::default() }, follow_symlinks: true, ..stats::Config::default() }
+}
+
+fn names(values: &[&str]) -> Vec<String> {
+    values.iter().map(|v| (*v).into()).collect()
+}
+
+pub fn layers_config(root: &Path) -> layers::Config {
+    layers::Config {
+        root: root.into(),
+        layers: [
+            (
+                "L0",
+                names(&[
+                    "photocraft-geom",
+                    "photocraft-cms",
+                    "photocraft-color",
+                    "photocraft-raster",
+                    "photocraft-psd",
+                    "photocraft-codecs",
+                    "photocraft-heif",
+                    "photocraft-ipp",
+                    "photocraft-raw",
+                    "photocraft-affinity",
+                    "photocraft-adobe-assets",
+                    "photocraft-tablet",
+                ]),
+            ),
+            ("L1", names(&["photocraft-doc"])),
+            ("L2", names(&["photocraft-ops", "photocraft-paint", "photocraft-algo", "photocraft-text", "photocraft-vector"])),
+            ("L3", names(&["photocraft-compose", "photocraft-gpu", "photocraft-format"])),
+            ("L4", names(&["photocraft-io", "photocraft-tools", "photocraft-viewport", "photocraft-ml", "photocraft-plugins"])),
+            ("L5", names(&["photocraft-engine"])),
+            ("L6", names(&["photocraft-ui-egui", "photocraft-automation", "photocraft-platform", "photocraft-testkit"])),
+        ]
+        .into_iter()
+        .map(|(label, members)| (label.into(), members))
+        .collect(),
+        exempt: names(&["photocraft", "photocraft-cli", "photocraft-web", "photocraft-web-boot", "xtask"]),
+        standalone: names(&[
+            "photocraft-psd",
+            "photocraft-codecs",
+            "photocraft-heif",
+            "photocraft-ipp",
+            "photocraft-raw",
+            "photocraft-affinity",
+            "photocraft-adobe-assets",
+            "photocraft-tablet",
+        ]),
+        testkits: names(&["photocraft-testkit"]),
+        allowed_edges: [
+            ("photocraft-cms", "photocraft-geom"),
+            ("photocraft-color", "photocraft-geom"),
+            ("photocraft-color", "photocraft-cms"),
+            ("photocraft-raster", "photocraft-geom"),
+            ("photocraft-raster", "photocraft-cms"),
+            ("photocraft-raster", "photocraft-color"),
+            ("photocraft-gpu", "photocraft-compose"),
+            ("photocraft-codecs", "photocraft-heif"),
+        ]
+        .into_iter()
+        .map(|(from, to)| (from.into(), to.into()))
+        .collect(),
+        external_rules: vec![layers::ExternalRule {
+            dependencies: names(&["egui", "eframe", "winit", "egui_kittest", "craft-ui", "rfd", "bevy*"]),
+            allowed_from: names(&["photocraft-ui-egui", "photocraft-automation", "photocraft-platform", "photocraft-testkit"]),
+            allowed_dev_from: Vec::new(),
+        }],
+        ..layers::Config::default()
+    }
+}
+
+fn describe_layer<'a>(cfg: &'a layers::Config, name: &str) -> &'a str {
+    if cfg.exempt.iter().any(|m| m == name) {
+        "exempt"
+    } else if cfg.standalone.iter().any(|m| m == name) {
+        "L0 standalone"
+    } else if cfg.testkits.iter().any(|m| m == name) {
+        "testkit"
+    } else {
+        cfg.layers.iter().find(|(_, members)| members.iter().any(|m| m == name)).map(|(label, _)| label.as_str()).unwrap_or("UNREGISTERED")
+    }
+}
+
 fn cmd_layers() -> Result<(), String> {
-    let crates = layers::from_metadata(&metadata()?)?;
+    let cfg = layers_config(&root());
+    let report = layers::compute(&cfg, &layers::Args::default())?;
     println!("Dependency layering (docs/architecture.md §3)\n");
     println!("{:<28} {:<14} workspace deps", "crate", "layer");
-    for c in &crates {
+    for c in &report.crates {
         let ws: Vec<String> = c
             .deps
             .iter()
@@ -125,38 +216,30 @@ fn cmd_layers() -> Result<(), String> {
                     layers::DepKind::Dev => " (dev)",
                     layers::DepKind::Build => " (build)",
                 };
-                format!("{}{k}", layers::short_name(&d.name))
+                format!("{}{k}", d.name.strip_prefix("photocraft-").unwrap_or(&d.name))
             })
             .collect();
-        println!("{:<28} {:<14} {}", c.name, layers::describe(layers::classify(&c.name)), ws.join(", "));
+        println!("{:<28} {:<14} {}", c.name, describe_layer(&cfg, &c.name), ws.join(", "));
     }
-    let violations = layers::check(&crates);
     println!();
-    if violations.is_empty() {
-        println!("OK: {} crates, no layering violations.", crates.len());
+    if report.ok {
+        println!("OK: {} crates, no layering violations.", report.crates.len());
         Ok(())
     } else {
-        println!("{} violation(s):", violations.len());
-        for v in &violations {
+        println!("{} violation(s):", report.violations.len());
+        for v in &report.violations {
             println!("  - {v}");
         }
-        Err(format!("{} layering violation(s)", violations.len()))
+        Err(format!("{} layering violation(s)", report.violations.len()))
     }
 }
 
 /// Workspace packages that must build for wasm32: all L0–L5 crates plus
 /// the egui shell.
 fn wasm_set() -> Result<Vec<String>, String> {
+    let cfg = layers_config(&root());
     let crates = layers::from_metadata(&metadata()?)?;
-    Ok(crates
-        .into_iter()
-        .filter(|c| match layers::classify(&c.name) {
-            Some(layers::Class::Layer(l)) => l <= 5 || layers::short_name(&c.name) == "ui-egui",
-            Some(layers::Class::Standalone) => true,
-            _ => false,
-        })
-        .map(|c| c.name)
-        .collect())
+    Ok(crates.into_iter().filter(|c| cfg.layers.iter().take(6).any(|(_, m)| m.contains(&c.name)) || c.name == "photocraft-ui-egui").map(|c| c.name).collect())
 }
 
 /// Optional features that official builds enable and the web app ships, also checked for wasm32:
@@ -316,4 +399,30 @@ fn cmd_ci() -> Result<(), String> {
     }
     println!("\nCI summary: all {} steps passed ({})", done.len(), done.join(", "));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configs_preserve_photocraft_policies() {
+        let vcfg = version_config(&root());
+        assert!(vcfg.strict_prerelease);
+        let sample = "[workspace.package]\nversion = \"0.1.0\"\n";
+        assert!(version::rewrite(&vcfg, sample, "1.0.0-01").is_err());
+        assert!(version::rewrite(&vcfg, sample, "1.0.0-rc.1").is_ok());
+
+        let scfg = stats_config(&root());
+        assert!(scfg.follow_symlinks);
+
+        let lcfg = layers_config(&root());
+        let edge = |from: &str, to: &str, kind: layers::DepKind, workspace: bool| layers::Crate {
+            name: from.into(),
+            deps: vec![layers::Dep { name: to.into(), kind, workspace }],
+        };
+        assert!(layers::check(&lcfg, &[edge("photocraft-codecs", "photocraft-heif", layers::DepKind::Normal, true)]).unwrap().is_empty());
+        assert!(!layers::check(&lcfg, &[edge("photocraft-heif", "photocraft-codecs", layers::DepKind::Normal, true)]).unwrap().is_empty());
+        assert!(!layers::check(&lcfg, &[edge("photocraft-engine", "egui", layers::DepKind::Normal, false)]).unwrap().is_empty());
+    }
 }

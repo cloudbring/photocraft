@@ -240,8 +240,8 @@ fn verify_pngsuite(dir: &Path, manifest: &str) -> Result<(), String> {
         let entry = entry.map_err(|e| format!("{}: {e}", dir.display()))?;
         let name = entry.file_name();
         let hash = name.to_str().and_then(|n| expected.get(n)).ok_or_else(|| format!("pngsuite: unexpected file {}", entry.path().display()))?;
-        let bytes = pngsuite_bytes(&entry.path(), PNGSUITE_MAX_FILE_BYTES)?;
-        if crate::sha256::hex(&bytes) != **hash {
+        pngsuite_bytes(&entry.path(), PNGSUITE_MAX_FILE_BYTES)?;
+        if craft_xtask::sha256_hex(&entry.path())? != **hash {
             return Err(format!("pngsuite: {}: sha256 mismatch", entry.path().display()));
         }
         seen += 1;
@@ -326,8 +326,8 @@ fn fetch_pngsuite_in(
     let mut stage = PngSuiteStage::new(corpus)?;
     let archive = stage.path.join("archive.tgz");
     download(&archive)?;
-    let bytes = pngsuite_bytes(&archive, PNGSUITE_MAX_ARCHIVE_BYTES)?;
-    if crate::sha256::hex(&bytes) != archive_hash {
+    pngsuite_bytes(&archive, PNGSUITE_MAX_ARCHIVE_BYTES)?;
+    if craft_xtask::sha256_hex(&archive)? != archive_hash {
         return Err("pngsuite: archive sha256 mismatch; nothing extracted".into());
     }
     let files = stage.path.join("files");

@@ -1,0 +1,36 @@
+Dependency layering (docs/architecture.md §3)
+
+crate                        layer          workspace deps
+photocraft                   exempt         automation, codecs, color, compose, doc, engine, format, geom, io, raster, tablet, ui-egui, cms
+photocraft-affinity          L0 standalone  
+photocraft-algo              L2             color, geom, raster, testkit (dev)
+photocraft-automation        L6             codecs, compose, doc, engine, format, io, raster, raw (dev)
+photocraft-cli               exempt         automation, codecs, engine, format, io, raw (dev)
+photocraft-cms               L0             
+photocraft-codecs            L0 standalone  heif
+photocraft-color             L0             cms
+photocraft-compose           L3             color, doc, geom, raster, vector, cms (dev), paint (dev)
+photocraft-doc               L1             color, geom, raster
+photocraft-engine            L5             algo, cms, codecs, color, compose, doc, format, geom, io, ops, paint, plugins, psd, raster, text, vector, affinity (dev), raw (dev), testkit (dev), ipp
+photocraft-format            L3             codecs, color, doc, geom, raster
+photocraft-geom              L0             
+photocraft-gpu               L3             algo, color, compose, doc, geom, raster, cms (dev), vector (dev)
+photocraft-heif              L0 standalone  
+photocraft-io                L4             affinity, algo, cms, codecs, color, compose, doc, format, geom, paint, psd, raster, raw, text, vector, affinity (dev), psd (dev), raw (dev), testkit (dev)
+photocraft-ipp               L0 standalone  
+photocraft-ops               L2             doc
+photocraft-paint             L2             color, geom, raster, cms (dev)
+photocraft-plugins           L4             color, geom, raster
+photocraft-psd               L0 standalone  psd (dev)
+photocraft-raster            L0             color, geom
+photocraft-raw               L0 standalone  raw (dev)
+photocraft-tablet            L0 standalone  
+photocraft-testkit           testkit        
+photocraft-text              L2             color, doc, geom, psd, raster
+photocraft-ui-egui           L6             algo, cms, codecs, color, compose, doc, engine, format, geom, gpu, io, paint, plugins, raster, text, vector, psd (dev), raw (dev), testkit (dev)
+photocraft-vector            L2             color, doc, geom, raster
+photocraft-web               exempt         codecs, doc, engine, io, ui-egui, paint (dev), psd (dev)
+photocraft-web-boot          exempt         
+xtask                        exempt         
+
+OK: 31 crates, no layering violations.
