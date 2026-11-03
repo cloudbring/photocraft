@@ -166,26 +166,10 @@ pub fn sample_pixels(w: usize, h: usize, middle: &[[f32; 4]], count: usize) -> V
 /// Debevec–Malik response curve: `z[j][i]` is the code value (0..=255) of sample `i` in exposure
 /// `j`; returns `g(0..=255)` (log exposure per code value, `g(128) = 0`), smoothed by `lambda`.
 pub fn response_curve(z: &[Vec<u8>], log_dt: &[f64], lambda: f64) -> Vec<f64> {
-    let p = z.len();
-    let n = z.first().map_or(0, Vec::len);
-    let mut ne = Normal::new(256 + n);
-    for j in 0..p {
-        for i in 0..n {
-            let zz = z[j][i] as usize;
-            let w = hat(zz as f64) + 1.0;
-            ne.add(&[(zz, 1.0), (256 + i, -1.0)], log_dt[j], w);
-        }
-    }
-    ne.add(&[(128, 1.0)], 0.0, 100.0);
-    for k in 1..255 {
-        let w = lambda.sqrt() * (hat(k as f64) + 1.0);
-        ne.add(&[(k - 1, 1.0), (k, -2.0), (k + 1, 1.0)], 0.0, w);
-    }
-    let Some(x) = ne.solve() else {
+    let Some(mut g) = response_solve(z, log_dt, lambda) else {
         // Fall back to the sRGB curve.
         return (0..256).map(|k| (srgb_to_linear(k as f32 / 255.0).max(1e-5) as f64).ln() - (srgb_to_linear(128.0 / 255.0) as f64).ln()).collect();
     };
-    let mut g: Vec<f64> = x[..256].to_vec();
     // Enforce monotonicity (noise at the extremes can fold the curve).
     for k in (0..128).rev() {
         g[k] = g[k].min(g[k + 1] - 1e-4);
@@ -194,6 +178,74 @@ pub fn response_curve(z: &[Vec<u8>], log_dt: &[f64], lambda: f64) -> Vec<f64> {
         g[k] = g[k].max(g[k - 1] + 1e-4);
     }
     g
+}
+
+fn response_solve(z: &[Vec<u8>], log_dt: &[f64], lambda: f64) -> Option<Vec<f64>> {
+    let p = z.len();
+    let n = z.first().map_or(0, Vec::len);
+    if p == 0 || n == 0 || !lambda.is_finite() || lambda < 0.0 {
+        return None;
+    }
+    let mut ne = Normal::new(256);
+    for i in 0..n {
+        let mut sum_w = 0.0;
+        let mut sum_dt = 0.0;
+        for j in 0..p {
+            let zz = z[j][i] as usize;
+            let weight = (hat(zz as f64) + 1.0).powi(2);
+            sum_w += weight;
+            sum_dt += weight * log_dt[j];
+            ne.ata[zz * 256 + zz] += weight;
+            ne.atb[zz] += weight * log_dt[j];
+        }
+        for j in 0..p {
+            let code = z[j][i] as usize;
+            let weight = (hat(code as f64) + 1.0).powi(2);
+            ne.atb[code] -= weight * sum_dt / sum_w;
+            for exposure in z {
+                let other = exposure[i] as usize;
+                let other_weight = (hat(other as f64) + 1.0).powi(2);
+                ne.ata[code * 256 + other] -= weight * other_weight / sum_w;
+            }
+        }
+    }
+    ne.add(&[(128, 1.0)], 0.0, 100.0);
+    for k in 1..255 {
+        let w = lambda.sqrt() * (hat(k as f64) + 1.0);
+        ne.add(&[(k - 1, 1.0), (k, -2.0), (k + 1, 1.0)], 0.0, w);
+    }
+    solve_response_spd(ne.ata, ne.atb)
+}
+
+fn solve_response_spd(mut matrix: Vec<f64>, mut rhs: Vec<f64>) -> Option<Vec<f64>> {
+    const N: usize = 256;
+    for row in 0..N {
+        for col in 0..=row {
+            let mut value = matrix[row * N + col];
+            for k in 0..col {
+                value -= matrix[row * N + k] * matrix[col * N + k];
+            }
+            if row == col {
+                if !value.is_finite() || value <= 1e-14 {
+                    return None;
+                }
+                matrix[row * N + col] = value.sqrt();
+            } else {
+                matrix[row * N + col] = value / matrix[col * N + col];
+            }
+        }
+        for col in 0..row {
+            rhs[row] -= matrix[row * N + col] * rhs[col];
+        }
+        rhs[row] /= matrix[row * N + row];
+    }
+    for row in (0..N).rev() {
+        for col in row + 1..N {
+            rhs[row] -= matrix[col * N + row] * rhs[col];
+        }
+        rhs[row] /= matrix[row * N + row];
+    }
+    rhs.iter().all(|value| value.is_finite()).then_some(rhs)
 }
 
 fn g_at(g: &[f64], v: f32) -> f64 {
@@ -426,6 +478,80 @@ pub fn tone_map(px: &mut [[f32; 4]], w: usize, h: usize, method: &ToneMethod) {
 mod tests {
     use super::*;
 
+    fn dense_response(z: &[Vec<u8>], log_dt: &[f64], lambda: f64) -> Option<Vec<f64>> {
+        let samples = z.first().map_or(0, Vec::len);
+        let mut normal = Normal::new(256 + samples);
+        for (exposure, &dt) in z.iter().zip(log_dt) {
+            for (index, &code) in exposure.iter().enumerate() {
+                normal.add(&[(code as usize, 1.0), (256 + index, -1.0)], dt, hat(code as f64) + 1.0);
+            }
+        }
+        normal.add(&[(128, 1.0)], 0.0, 100.0);
+        for code in 1..255 {
+            normal.add(&[(code - 1, 1.0), (code, -2.0), (code + 1, 1.0)], 0.0, lambda.sqrt() * (hat(code as f64) + 1.0));
+        }
+        normal.solve()
+    }
+
+    #[test]
+    fn schur_matches_dense_response_and_irradiance() {
+        let mut state = 42u64;
+        let log_dt = [-1.7, -0.6, 0.4, 1.4];
+        let mut max_error = 0.0f64;
+        for samples in [16, 64, 160] {
+            for _ in 0..3 {
+                let mut z = vec![vec![0; samples]; log_dt.len()];
+                for index in 0..samples {
+                    state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    let radiance = ((state >> 32) as f64 / u32::MAX as f64 * 8.0 - 5.0).exp();
+                    for (exposure, &dt) in z.iter_mut().zip(&log_dt) {
+                        exposure[index] = ((radiance * f64::exp(dt)).powf(0.45).min(1.0) * 255.0).round() as u8;
+                    }
+                }
+                let dense = dense_response(&z, &log_dt, 40.0).unwrap();
+                let reduced = response_solve(&z, &log_dt, 40.0).unwrap();
+                for (actual, expected) in reduced.iter().zip(&dense) {
+                    max_error = max_error.max((actual - expected).abs() / expected.abs().max(1.0));
+                }
+                for index in 0..samples {
+                    let mut sum = 0.0;
+                    let mut weights = 0.0;
+                    for (exposure, &dt) in z.iter().zip(&log_dt) {
+                        let code = exposure[index] as usize;
+                        let weight = (hat(code as f64) + 1.0).powi(2);
+                        sum += weight * (reduced[code] - dt);
+                        weights += weight;
+                    }
+                    let expected = dense[256 + index];
+                    max_error = max_error.max((sum / weights - expected).abs() / expected.abs().max(1.0));
+                }
+            }
+        }
+        eprintln!("HDR_MAX_SOLUTION_SCALED_ERROR={max_error:.12e}");
+        assert!(max_error < 1e-6, "maximum scaled error {max_error}");
+    }
+
+    #[test]
+    #[ignore]
+    fn response_calibration_benchmark() {
+        let count: usize = std::env::var("HDR_BENCH_SAMPLES").unwrap_or_else(|_| "160".into()).parse().unwrap();
+        let log_dt = [-1.3862943611198906, 0.0, 1.3862943611198906];
+        let z: Vec<Vec<u8>> = log_dt
+            .iter()
+            .map(|dt| {
+                (0..count)
+                    .map(|i| {
+                        let irradiance = 0.002 * 2f64.powf((i as f64 + 0.5) / count as f64 * 12.0);
+                        ((irradiance * f64::exp(*dt)).powf(0.45).min(1.0) * 255.0).round() as u8
+                    })
+                    .collect()
+            })
+            .collect();
+        let start = std::time::Instant::now();
+        std::hint::black_box(response_curve(&z, &log_dt, 40.0));
+        eprintln!("HDR_BENCH samples={count} exposures=3 ms={:.3}", start.elapsed().as_secs_f64() * 1000.0);
+    }
+
     #[test]
     fn bitmaps_match_sorted_threshold_and_reuse_scratch() {
         let mut scratch = Vec::new();
@@ -457,6 +583,34 @@ mod tests {
 
     fn shoot(sc: &[[f32; 3]], dt: f32) -> Vec<[f32; 4]> {
         sc.iter().map(|r| [camera(r[0] * dt), camera(r[1] * dt), camera(r[2] * dt), 1.0]).map(|p| p.map(|v| (v * 255.0).round() / 255.0)).collect()
+    }
+
+    #[test]
+    fn schur_merge_matches_dense_fixture() {
+        let (width, height) = (192, 64);
+        let scene = scene(width, height);
+        let images: Vec<_> = [0.25, 1.0, 4.0].map(|dt| shoot(&scene, dt)).into();
+        let refs: Vec<_> = images.iter().map(Vec::as_slice).collect();
+        let samples = sample_pixels(width, height, refs[1], 160);
+        let log_dt = [0.25f64.ln(), 0.0, 4.0f64.ln()];
+        let response = std::array::from_fn(|channel| {
+            let z: Vec<Vec<u8>> =
+                refs.iter().map(|image| samples.iter().map(|&index| (image[index][channel].clamp(0.0, 1.0) * 255.0).round() as u8).collect()).collect();
+            let mut curve = dense_response(&z, &log_dt, 40.0).unwrap()[..256].to_vec();
+            for code in (0..128).rev() {
+                curve[code] = curve[code].min(curve[code + 1] - 1e-4);
+            }
+            for code in 129..256 {
+                curve[code] = curve[code].max(curve[code - 1] + 1e-4);
+            }
+            curve
+        });
+        let opts = |response| MergeOptions { exposures: vec![0.25, 1.0, 4.0], remove_ghosts: false, ghost_base: None, response };
+        let old = merge(width, height, &refs, &opts(Some(response)));
+        let new = merge(width, height, &refs, &opts(None));
+        let max_change = old.px.iter().zip(&new.px).flat_map(|(a, b)| a.iter().zip(b).map(|(x, y)| (x - y).abs())).fold(0.0f32, f32::max);
+        eprintln!("HDR_MAX_PIXEL_CHANGE={max_change:.12e}");
+        assert!(max_change < 1e-6, "maximum pixel change {max_change}");
     }
 
     #[test]
