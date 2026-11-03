@@ -1360,7 +1360,7 @@ source = "git+https://github.com/storytold/craft-libs?rev=c5a1cbfb5f9049f9270955
 [[package]]
 name = "craft-fuzzy"
 version = "0.1.0"
-source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F74-craft-fuzzy#f773bd66b17776f9af6a49ada0545e8ca991949c"
+source = "git+https://github.com/cloudbring/craft-libs?branch=algo%2F74-craft-fuzzy-tuning#1f85ba5b3c177b958999ad20a92262be8f0f0519"
 
 [[package]]
 name = "craft-i18n"

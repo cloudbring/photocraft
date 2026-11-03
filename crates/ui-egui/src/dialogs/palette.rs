@@ -436,6 +436,15 @@ mod tests {
                 .collect();
             old.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(right.1)));
             new.sort_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(right.1)));
+            if query == "op" {
+                assert_eq!(new.first().map(|hit| hit.2.as_str()), Some("file.open"));
+            }
+            if query == "layer" {
+                assert!(new.first().is_some_and(|hit| {
+                    let label = hit.1.trim_end_matches('…');
+                    label == "Layer" || label.ends_with(" Layer")
+                }));
+            }
             let old_ids: Vec<_> = old.iter().map(|hit| hit.2).collect();
             let new_ids: Vec<_> = new.iter().map(|hit| hit.2).collect();
             if old_ids != new_ids {
