@@ -5006,16 +5006,16 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "open",
  "photocraft-automation",
- "photocraft-cms",
+ "photocraft-cms 0.20.1",
  "photocraft-codecs",
- "photocraft-color",
+ "photocraft-color 0.20.1",
  "photocraft-compose",
  "photocraft-doc",
  "photocraft-engine",
  "photocraft-format",
- "photocraft-geom",
+ "photocraft-geom 0.20.1",
  "photocraft-io",
- "photocraft-raster",
+ "photocraft-raster 0.20.1",
  "photocraft-tablet",
  "photocraft-ui-egui",
  "plist",
@@ -5052,9 +5052,9 @@ name = "photocraft-algo"
 version = "0.20.1"
 dependencies = [
  "criterion",
- "photocraft-color",
- "photocraft-geom",
- "photocraft-raster",
+ "photocraft-color 0.20.1",
+ "photocraft-geom 0.20.1",
+ "photocraft-raster 0.20.1",
  "photocraft-testkit",
  "rayon",
  "rustfft",
@@ -5076,7 +5076,7 @@ dependencies = [
  "photocraft-engine",
  "photocraft-format",
  "photocraft-io",
- "photocraft-raster",
+ "photocraft-raster 0.20.1",
  "photocraft-raw",
  "rmcp",
  "rustix 1.1.5",
@@ -5115,6 +5115,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "photocraft-cms"
+version = "0.20.1"
+source = "git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495#327c4cc82e737a3e0af7c147a477126d77525495"
+dependencies = [
+ "rayon",
+]
+
+[[package]]
 name = "photocraft-codecs"
 version = "0.20.1"
 dependencies = [
@@ -5142,7 +5150,16 @@ dependencies = [
 name = "photocraft-color"
 version = "0.20.1"
 dependencies = [
- "photocraft-cms",
+ "photocraft-cms 0.20.1",
+ "serde",
+]
+
+[[package]]
+name = "photocraft-color"
+version = "0.20.1"
+source = "git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495#327c4cc82e737a3e0af7c147a477126d77525495"
+dependencies = [
+ "photocraft-cms 0.20.1 (git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495)",
  "serde",
 ]
 
@@ -5151,12 +5168,12 @@ name = "photocraft-compose"
 version = "0.20.1"
 dependencies = [
  "criterion",
- "photocraft-cms",
- "photocraft-color",
+ "photocraft-cms 0.20.1",
+ "photocraft-color 0.20.1",
  "photocraft-doc",
- "photocraft-geom",
+ "photocraft-geom 0.20.1",
  "photocraft-paint",
- "photocraft-raster",
+ "photocraft-raster 0.20.1",
  "photocraft-vector",
  "proptest",
  "rayon",
@@ -5166,9 +5183,9 @@ dependencies = [
 name = "photocraft-doc"
 version = "0.20.1"
 dependencies = [
- "photocraft-color",
- "photocraft-geom",
- "photocraft-raster",
+ "photocraft-color 0.20.1",
+ "photocraft-geom 0.20.1",
+ "photocraft-raster 0.20.1",
  "serde",
  "serde_json",
 ]
@@ -5185,20 +5202,20 @@ dependencies = [
  "flate2",
  "photocraft-affinity",
  "photocraft-algo",
- "photocraft-cms",
+ "photocraft-cms 0.20.1",
  "photocraft-codecs",
- "photocraft-color",
+ "photocraft-color 0.20.1",
  "photocraft-compose",
  "photocraft-doc",
  "photocraft-format",
- "photocraft-geom",
+ "photocraft-geom 0.20.1",
  "photocraft-io",
  "photocraft-ipp",
  "photocraft-ops",
  "photocraft-paint",
  "photocraft-plugins",
  "photocraft-psd",
- "photocraft-raster",
+ "photocraft-raster 0.20.1",
  "photocraft-raw",
  "photocraft-testkit",
  "photocraft-text",
@@ -5226,10 +5243,10 @@ dependencies = [
  "flate2",
  "libc",
  "photocraft-codecs",
- "photocraft-color",
+ "photocraft-color 0.20.1",
  "photocraft-doc",
- "photocraft-geom",
- "photocraft-raster",
+ "photocraft-geom 0.20.1",
+ "photocraft-raster 0.20.1",
  "proptest",
  "rustix 1.1.5",
  "ruzstd",
@@ -5247,6 +5264,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "photocraft-geom"
+version = "0.20.1"
+source = "git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495#327c4cc82e737a3e0af7c147a477126d77525495"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "photocraft-gpu"
 version = "0.20.1"
 dependencies = [
@@ -5254,12 +5279,12 @@ dependencies = [
  "half",
  "log",
  "photocraft-algo",
- "photocraft-cms",
- "photocraft-color",
+ "photocraft-cms 0.20.1",
+ "photocraft-color 0.20.1",
  "photocraft-compose",
  "photocraft-doc",
- "photocraft-geom",
- "photocraft-raster",
+ "photocraft-geom 0.20.1",
+ "photocraft-raster 0.20.1",
  "photocraft-vector",
  "pollster 1.0.1",
  "rayon",
@@ -5285,16 +5310,16 @@ dependencies = [
  "miniz_oxide 0.9.1",
  "photocraft-affinity",
  "photocraft-algo",
- "photocraft-cms",
+ "photocraft-cms 0.20.1",
  "photocraft-codecs",
- "photocraft-color",
+ "photocraft-color 0.20.1",
  "photocraft-compose",
  "photocraft-doc",
  "photocraft-format",
- "photocraft-geom",
+ "photocraft-geom 0.20.1",
  "photocraft-paint",
  "photocraft-psd",
- "photocraft-raster",
+ "photocraft-raster 0.20.1",
  "photocraft-raw",
  "photocraft-testkit",
  "photocraft-text",
@@ -5325,10 +5350,10 @@ dependencies = [
 name = "photocraft-paint"
 version = "0.20.1"
 dependencies = [
- "photocraft-cms",
- "photocraft-color",
- "photocraft-geom",
- "photocraft-raster",
+ "photocraft-cms 0.20.1",
+ "photocraft-color 0.20.1",
+ "photocraft-geom 0.20.1",
+ "photocraft-raster 0.20.1",
  "rayon",
  "rustc-hash 2.1.3",
  "serde",
@@ -5339,9 +5364,9 @@ dependencies = [
 name = "photocraft-plugins"
 version = "0.20.1"
 dependencies = [
- "photocraft-color",
- "photocraft-geom",
- "photocraft-raster",
+ "photocraft-color 0.20.1",
+ "photocraft-geom 0.20.1",
+ "photocraft-raster 0.20.1",
  "rayon",
  "rustix 1.1.5",
  "serde",
@@ -5369,9 +5394,23 @@ version = "0.20.1"
 dependencies = [
  "allocation-counter",
  "craft-tiledir",
- "photocraft-color",
- "photocraft-geom",
+ "photocraft-color 0.20.1",
+ "photocraft-color 0.20.1 (git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495)",
+ "photocraft-geom 0.20.1",
+ "photocraft-geom 0.20.1 (git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495)",
+ "photocraft-raster 0.20.1 (git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495)",
  "proptest",
+ "rayon",
+ "serde",
+]
+
+[[package]]
+name = "photocraft-raster"
+version = "0.20.1"
+source = "git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495#327c4cc82e737a3e0af7c147a477126d77525495"
+dependencies = [
+ "photocraft-color 0.20.1 (git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495)",
+ "photocraft-geom 0.20.1 (git+https://github.com/storytold/photocraft?rev=327c4cc82e737a3e0af7c147a477126d77525495)",
  "rayon",
  "serde",
 ]
@@ -5417,11 +5456,11 @@ version = "0.20.1"
 dependencies = [
  "flate2",
  "parley",
- "photocraft-color",
+ "photocraft-color 0.20.1",
  "photocraft-doc",
- "photocraft-geom",
+ "photocraft-geom 0.20.1",
  "photocraft-psd",
- "photocraft-raster",
+ "photocraft-raster 0.20.1",
  "rayon",
  "skrifa",
 ]
@@ -5442,20 +5481,20 @@ dependencies = [
  "flate2",
  "log",
  "photocraft-algo",
- "photocraft-cms",
+ "photocraft-cms 0.20.1",
  "photocraft-codecs",
- "photocraft-color",
+ "photocraft-color 0.20.1",
  "photocraft-compose",
  "photocraft-doc",
  "photocraft-engine",
  "photocraft-format",
- "photocraft-geom",
+ "photocraft-geom 0.20.1",
  "photocraft-gpu",
  "photocraft-io",
  "photocraft-paint",
  "photocraft-plugins",
  "photocraft-psd",
- "photocraft-raster",
+ "photocraft-raster 0.20.1",
  "photocraft-raw",
  "photocraft-testkit",
  "photocraft-text",
@@ -5475,10 +5514,10 @@ dependencies = [
 name = "photocraft-vector"
 version = "0.20.1"
 dependencies = [
- "photocraft-color",
+ "photocraft-color 0.20.1",
  "photocraft-doc",
- "photocraft-geom",
- "photocraft-raster",
+ "photocraft-geom 0.20.1",
+ "photocraft-raster 0.20.1",
  "rayon",
 ]
 

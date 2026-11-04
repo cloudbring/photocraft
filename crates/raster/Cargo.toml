@@ -19,6 +19,11 @@ rayon = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# OLD oracle (#188): photocraft-raster (and its geom/color) at the merge-base of
+# algo/35-persistent-tile-directory with origin/main, whose tiles were a BTreeMap<TileCoord, Arc<Tile>>.
+photocraft-raster-old = { git = "https://github.com/storytold/photocraft", rev = "327c4cc82e737a3e0af7c147a477126d77525495", package = "photocraft-raster" }
+photocraft-geom-old = { git = "https://github.com/storytold/photocraft", rev = "327c4cc82e737a3e0af7c147a477126d77525495", package = "photocraft-geom" }
+photocraft-color-old = { git = "https://github.com/storytold/photocraft", rev = "327c4cc82e737a3e0af7c147a477126d77525495", package = "photocraft-color" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 allocation-counter = "0.8.1"
