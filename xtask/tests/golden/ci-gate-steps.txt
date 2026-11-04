@@ -1,0 +1,10 @@
+cargo fmt --all -- --check
+cargo clippy --workspace --locked --features heif --all-targets --keep-going -- -D warnings
+cargo nextest --version
+cargo nextest run --profile ci --workspace --locked --features heif --lib --bins --tests
+cargo nextest --version
+cargo nextest run --profile ci --workspace --locked --features heif --lib --bins --tests --run-ignored only -E binary_id(photocraft-engine::panic_hunt)
+cargo test --workspace --locked --features heif --doc
+cargo check --target wasm32-unknown-unknown --keep-going -p photocraft-affinity -p photocraft-algo -p photocraft-cms -p photocraft-codecs -p photocraft-color -p photocraft-compose -p photocraft-doc -p photocraft-engine -p photocraft-format -p photocraft-geom -p photocraft-gpu -p photocraft-heif -p photocraft-io -p photocraft-ipp -p photocraft-ops -p photocraft-paint -p photocraft-plugins -p photocraft-psd -p photocraft-raster -p photocraft-raw -p photocraft-tablet -p photocraft-text -p photocraft-ui-egui -p photocraft-vector
+cargo check --target wasm32-unknown-unknown -p photocraft-codecs --features heif
+CI summary: all 9 steps passed (fmt, clippy, layers, scorecard, test, panic_hunt, doctest, wasm, i18n)
