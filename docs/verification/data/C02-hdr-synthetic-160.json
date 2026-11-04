@@ -1,0 +1,420 @@
+{
+  "craft_bench_report": {
+    "aggregate": {
+      "cpu": {
+        "ci_hi": 0.5675070028011204,
+        "ci_lo": 0.5605131065253764,
+        "point": 0.5636160714285714
+      },
+      "inputs": 1,
+      "wall": {
+        "ci_hi": 0.5674252570769146,
+        "ci_lo": 0.559444525271629,
+        "point": 0.5636934927809466
+      }
+    },
+    "config": {
+      "cpu_time": "process",
+      "output_checked": true,
+      "requested_repetitions": 20,
+      "resamples": 2000,
+      "runs_per_side": 20,
+      "seed": 12648430,
+      "warmup_runs": 2
+    },
+    "contended": false,
+    "fingerprint": {
+      "arch": "aarch64",
+      "cpu_model": "Apple M6",
+      "date": "2026-11-04T23:18:56+00:00",
+      "debug_assertions": false,
+      "kernel": "Darwin 27.0.0",
+      "logical_cores": 12,
+      "opt_level": "3",
+      "os": "macos",
+      "physical_cores": 12,
+      "profile": "release",
+      "ram_bytes": 34359738368,
+      "rustc": "rustc 1.99.0 (b940084d7 2026-09-28) (Homebrew)"
+    },
+    "guard": {
+      "contended": false,
+      "load_after": 4.77,
+      "load_before": 4.77,
+      "load_threshold": 6.0,
+      "logical_cores": 12,
+      "max_load_per_core": 0.5,
+      "reasons": [],
+      "throttle_after": {
+        "speed_limit_pct": null,
+        "throttle_count": null
+      },
+      "throttle_before": {
+        "speed_limit_pct": null,
+        "throttle_count": null
+      }
+    },
+    "inputs": [
+      {
+        "cpu": {
+          "new": {
+            "mad_ns": 5000.0,
+            "max_ns": 1065000.0,
+            "median_ns": 1010000.0,
+            "min_ns": 1002000.0,
+            "n": 20
+          },
+          "old": {
+            "mad_ns": 7000.0,
+            "max_ns": 1815000.0,
+            "median_ns": 1792000.0,
+            "min_ns": 1766000.0,
+            "n": 20
+          },
+          "ratio": {
+            "ci_hi": 0.5675070028011204,
+            "ci_lo": 0.5605131065253764,
+            "point": 0.5636160714285714
+          }
+        },
+        "name": "synthetic:160samples",
+        "wall": {
+          "new": {
+            "mad_ns": 5499.5,
+            "max_ns": 1071875.0,
+            "median_ns": 1010291.5,
+            "min_ns": 1002042.0,
+            "n": 20
+          },
+          "old": {
+            "mad_ns": 10979.0,
+            "max_ns": 1832750.0,
+            "median_ns": 1792271.0,
+            "min_ns": 1765583.0,
+            "n": 20
+          },
+          "ratio": {
+            "ci_hi": 0.5674252570769146,
+            "ci_lo": 0.559444525271629,
+            "point": 0.5636934927809466
+          }
+        }
+      }
+    ],
+    "name": "photocraft response_curve synthetic 160 samples",
+    "publishable": true,
+    "revs": {
+      "new": "03f2995df4605477bd5a276baeded1ee29239b09",
+      "old": "327c4cc82e737a3e0af7c147a477126d77525495"
+    },
+    "runs": [
+      {
+        "cpu_ns": 1797000,
+        "input": "synthetic:160samples",
+        "order": 0,
+        "side": "old",
+        "wall_ns": 1810875
+      },
+      {
+        "cpu_ns": 1016000,
+        "input": "synthetic:160samples",
+        "order": 1,
+        "side": "new",
+        "wall_ns": 1016208
+      },
+      {
+        "cpu_ns": 1005000,
+        "input": "synthetic:160samples",
+        "order": 2,
+        "side": "new",
+        "wall_ns": 1004792
+      },
+      {
+        "cpu_ns": 1786000,
+        "input": "synthetic:160samples",
+        "order": 3,
+        "side": "old",
+        "wall_ns": 1784917
+      },
+      {
+        "cpu_ns": 1012000,
+        "input": "synthetic:160samples",
+        "order": 4,
+        "side": "new",
+        "wall_ns": 1012333
+      },
+      {
+        "cpu_ns": 1798000,
+        "input": "synthetic:160samples",
+        "order": 5,
+        "side": "old",
+        "wall_ns": 1798125
+      },
+      {
+        "cpu_ns": 1793000,
+        "input": "synthetic:160samples",
+        "order": 6,
+        "side": "old",
+        "wall_ns": 1793125
+      },
+      {
+        "cpu_ns": 1009000,
+        "input": "synthetic:160samples",
+        "order": 7,
+        "side": "new",
+        "wall_ns": 1008042
+      },
+      {
+        "cpu_ns": 1025000,
+        "input": "synthetic:160samples",
+        "order": 8,
+        "side": "new",
+        "wall_ns": 1043750
+      },
+      {
+        "cpu_ns": 1789000,
+        "input": "synthetic:160samples",
+        "order": 9,
+        "side": "old",
+        "wall_ns": 1788958
+      },
+      {
+        "cpu_ns": 1776000,
+        "input": "synthetic:160samples",
+        "order": 10,
+        "side": "old",
+        "wall_ns": 1774500
+      },
+      {
+        "cpu_ns": 1004000,
+        "input": "synthetic:160samples",
+        "order": 11,
+        "side": "new",
+        "wall_ns": 1003875
+      },
+      {
+        "cpu_ns": 1770000,
+        "input": "synthetic:160samples",
+        "order": 12,
+        "side": "old",
+        "wall_ns": 1770375
+      },
+      {
+        "cpu_ns": 1011000,
+        "input": "synthetic:160samples",
+        "order": 13,
+        "side": "new",
+        "wall_ns": 1010750
+      },
+      {
+        "cpu_ns": 1009000,
+        "input": "synthetic:160samples",
+        "order": 14,
+        "side": "new",
+        "wall_ns": 1009833
+      },
+      {
+        "cpu_ns": 1794000,
+        "input": "synthetic:160samples",
+        "order": 15,
+        "side": "old",
+        "wall_ns": 1813667
+      },
+      {
+        "cpu_ns": 1002000,
+        "input": "synthetic:160samples",
+        "order": 16,
+        "side": "new",
+        "wall_ns": 1002042
+      },
+      {
+        "cpu_ns": 1792000,
+        "input": "synthetic:160samples",
+        "order": 17,
+        "side": "old",
+        "wall_ns": 1791417
+      },
+      {
+        "cpu_ns": 1770000,
+        "input": "synthetic:160samples",
+        "order": 18,
+        "side": "old",
+        "wall_ns": 1769750
+      },
+      {
+        "cpu_ns": 1003000,
+        "input": "synthetic:160samples",
+        "order": 19,
+        "side": "new",
+        "wall_ns": 1003208
+      },
+      {
+        "cpu_ns": 1004000,
+        "input": "synthetic:160samples",
+        "order": 20,
+        "side": "new",
+        "wall_ns": 1004792
+      },
+      {
+        "cpu_ns": 1774000,
+        "input": "synthetic:160samples",
+        "order": 21,
+        "side": "old",
+        "wall_ns": 1775083
+      },
+      {
+        "cpu_ns": 1798000,
+        "input": "synthetic:160samples",
+        "order": 22,
+        "side": "old",
+        "wall_ns": 1813750
+      },
+      {
+        "cpu_ns": 1006000,
+        "input": "synthetic:160samples",
+        "order": 23,
+        "side": "new",
+        "wall_ns": 1006208
+      },
+      {
+        "cpu_ns": 1005000,
+        "input": "synthetic:160samples",
+        "order": 24,
+        "side": "new",
+        "wall_ns": 1003042
+      },
+      {
+        "cpu_ns": 1778000,
+        "input": "synthetic:160samples",
+        "order": 25,
+        "side": "old",
+        "wall_ns": 1778542
+      },
+      {
+        "cpu_ns": 1766000,
+        "input": "synthetic:160samples",
+        "order": 26,
+        "side": "old",
+        "wall_ns": 1765583
+      },
+      {
+        "cpu_ns": 1005000,
+        "input": "synthetic:160samples",
+        "order": 27,
+        "side": "new",
+        "wall_ns": 1005208
+      },
+      {
+        "cpu_ns": 1792000,
+        "input": "synthetic:160samples",
+        "order": 28,
+        "side": "old",
+        "wall_ns": 1798625
+      },
+      {
+        "cpu_ns": 1065000,
+        "input": "synthetic:160samples",
+        "order": 29,
+        "side": "new",
+        "wall_ns": 1071875
+      },
+      {
+        "cpu_ns": 1022000,
+        "input": "synthetic:160samples",
+        "order": 30,
+        "side": "new",
+        "wall_ns": 1021750
+      },
+      {
+        "cpu_ns": 1799000,
+        "input": "synthetic:160samples",
+        "order": 31,
+        "side": "old",
+        "wall_ns": 1798125
+      },
+      {
+        "cpu_ns": 1013000,
+        "input": "synthetic:160samples",
+        "order": 32,
+        "side": "new",
+        "wall_ns": 1013708
+      },
+      {
+        "cpu_ns": 1784000,
+        "input": "synthetic:160samples",
+        "order": 33,
+        "side": "old",
+        "wall_ns": 1784042
+      },
+      {
+        "cpu_ns": 1799000,
+        "input": "synthetic:160samples",
+        "order": 34,
+        "side": "old",
+        "wall_ns": 1798583
+      },
+      {
+        "cpu_ns": 1018000,
+        "input": "synthetic:160samples",
+        "order": 35,
+        "side": "new",
+        "wall_ns": 1017625
+      },
+      {
+        "cpu_ns": 1815000,
+        "input": "synthetic:160samples",
+        "order": 36,
+        "side": "old",
+        "wall_ns": 1832750
+      },
+      {
+        "cpu_ns": 1013000,
+        "input": "synthetic:160samples",
+        "order": 37,
+        "side": "new",
+        "wall_ns": 1012209
+      },
+      {
+        "cpu_ns": 1011000,
+        "input": "synthetic:160samples",
+        "order": 38,
+        "side": "new",
+        "wall_ns": 1011292
+      },
+      {
+        "cpu_ns": 1800000,
+        "input": "synthetic:160samples",
+        "order": 39,
+        "side": "old",
+        "wall_ns": 1799208
+      }
+    ],
+    "schema_version": 1
+  },
+  "label": "C02-hdr-synthetic-160",
+  "meta": {
+    "claim": "C02 original synthetic form (3 exposures, 160/640 samples)",
+    "max_abs_curve_diff": 1.976030450379085e-12,
+    "tolerance": 1e-6
+  },
+  "summary": {
+    "ci_excludes_1": true,
+    "contended": false,
+    "cpu_speedup_geomean": {
+      "ci_hi": 1.7840796019900498,
+      "ci_lo": 1.7620927936821322,
+      "point": 1.7742574257425743
+    },
+    "direction": "faster",
+    "inputs": 1,
+    "load_after": 4.77,
+    "load_before": 4.77,
+    "logical_cores": 12,
+    "publishable": true,
+    "wall_speedup_geomean": {
+      "ci_hi": 1.7874873286398978,
+      "ci_lo": 1.762346648352401,
+      "point": 1.7740137376192913
+    }
+  }
+}

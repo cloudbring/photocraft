@@ -1,0 +1,420 @@
+{
+  "craft_bench_report": {
+    "aggregate": {
+      "cpu": {
+        "ci_hi": 0.03692083752530459,
+        "ci_lo": 0.0366417656362535,
+        "point": 0.036685549827865725
+      },
+      "inputs": 1,
+      "wall": {
+        "ci_hi": 0.03691274203113382,
+        "ci_lo": 0.03655262775351059,
+        "point": 0.036645041387928026
+      }
+    },
+    "config": {
+      "cpu_time": "process",
+      "output_checked": true,
+      "requested_repetitions": 20,
+      "resamples": 2000,
+      "runs_per_side": 20,
+      "seed": 12648430,
+      "warmup_runs": 2
+    },
+    "contended": false,
+    "fingerprint": {
+      "arch": "aarch64",
+      "cpu_model": "Apple M6",
+      "date": "2026-11-04T23:18:56+00:00",
+      "debug_assertions": false,
+      "kernel": "Darwin 27.0.0",
+      "logical_cores": 12,
+      "opt_level": "3",
+      "os": "macos",
+      "physical_cores": 12,
+      "profile": "release",
+      "ram_bytes": 34359738368,
+      "rustc": "rustc 1.99.0 (b940084d7 2026-09-28) (Homebrew)"
+    },
+    "guard": {
+      "contended": false,
+      "load_after": 4.62,
+      "load_before": 4.77,
+      "load_threshold": 6.0,
+      "logical_cores": 12,
+      "max_load_per_core": 0.5,
+      "reasons": [],
+      "throttle_after": {
+        "speed_limit_pct": null,
+        "throttle_count": null
+      },
+      "throttle_before": {
+        "speed_limit_pct": null,
+        "throttle_count": null
+      }
+    },
+    "inputs": [
+      {
+        "cpu": {
+          "new": {
+            "mad_ns": 3000.0,
+            "max_ns": 1021000.0,
+            "median_ns": 1007000.0,
+            "min_ns": 1001000.0,
+            "n": 20
+          },
+          "old": {
+            "mad_ns": 41000.0,
+            "max_ns": 27599000.0,
+            "median_ns": 27449500.0,
+            "min_ns": 27291000.0,
+            "n": 20
+          },
+          "ratio": {
+            "ci_hi": 0.03692083752530459,
+            "ci_lo": 0.036641765636253494,
+            "point": 0.03668554982786572
+          }
+        },
+        "name": "synthetic:640samples",
+        "wall": {
+          "new": {
+            "mad_ns": 2938.0,
+            "max_ns": 1023125.0,
+            "median_ns": 1007021.0,
+            "min_ns": 1000209.0,
+            "n": 20
+          },
+          "old": {
+            "mad_ns": 49895.5,
+            "max_ns": 27717708.0,
+            "median_ns": 27480416.5,
+            "min_ns": 27310541.0,
+            "n": 20
+          },
+          "ratio": {
+            "ci_hi": 0.03691274203113382,
+            "ci_lo": 0.0365526277535106,
+            "point": 0.03664504138792802
+          }
+        }
+      }
+    ],
+    "name": "photocraft response_curve synthetic 640 samples",
+    "publishable": true,
+    "revs": {
+      "new": "03f2995df4605477bd5a276baeded1ee29239b09",
+      "old": "327c4cc82e737a3e0af7c147a477126d77525495"
+    },
+    "runs": [
+      {
+        "cpu_ns": 27410000,
+        "input": "synthetic:640samples",
+        "order": 0,
+        "side": "old",
+        "wall_ns": 27441541
+      },
+      {
+        "cpu_ns": 1006000,
+        "input": "synthetic:640samples",
+        "order": 1,
+        "side": "new",
+        "wall_ns": 1004708
+      },
+      {
+        "cpu_ns": 1004000,
+        "input": "synthetic:640samples",
+        "order": 2,
+        "side": "new",
+        "wall_ns": 1003958
+      },
+      {
+        "cpu_ns": 27422000,
+        "input": "synthetic:640samples",
+        "order": 3,
+        "side": "old",
+        "wall_ns": 27451875
+      },
+      {
+        "cpu_ns": 1007000,
+        "input": "synthetic:640samples",
+        "order": 4,
+        "side": "new",
+        "wall_ns": 1006417
+      },
+      {
+        "cpu_ns": 27451000,
+        "input": "synthetic:640samples",
+        "order": 5,
+        "side": "old",
+        "wall_ns": 27535250
+      },
+      {
+        "cpu_ns": 27291000,
+        "input": "synthetic:640samples",
+        "order": 6,
+        "side": "old",
+        "wall_ns": 27310541
+      },
+      {
+        "cpu_ns": 1007000,
+        "input": "synthetic:640samples",
+        "order": 7,
+        "side": "new",
+        "wall_ns": 1006583
+      },
+      {
+        "cpu_ns": 1004000,
+        "input": "synthetic:640samples",
+        "order": 8,
+        "side": "new",
+        "wall_ns": 1004208
+      },
+      {
+        "cpu_ns": 27373000,
+        "input": "synthetic:640samples",
+        "order": 9,
+        "side": "old",
+        "wall_ns": 27424667
+      },
+      {
+        "cpu_ns": 27598000,
+        "input": "synthetic:640samples",
+        "order": 10,
+        "side": "old",
+        "wall_ns": 27710041
+      },
+      {
+        "cpu_ns": 1021000,
+        "input": "synthetic:640samples",
+        "order": 11,
+        "side": "new",
+        "wall_ns": 1021292
+      },
+      {
+        "cpu_ns": 27492000,
+        "input": "synthetic:640samples",
+        "order": 12,
+        "side": "old",
+        "wall_ns": 27517917
+      },
+      {
+        "cpu_ns": 1017000,
+        "input": "synthetic:640samples",
+        "order": 13,
+        "side": "new",
+        "wall_ns": 1017917
+      },
+      {
+        "cpu_ns": 1012000,
+        "input": "synthetic:640samples",
+        "order": 14,
+        "side": "new",
+        "wall_ns": 1012417
+      },
+      {
+        "cpu_ns": 27443000,
+        "input": "synthetic:640samples",
+        "order": 15,
+        "side": "old",
+        "wall_ns": 27472334
+      },
+      {
+        "cpu_ns": 1006000,
+        "input": "synthetic:640samples",
+        "order": 16,
+        "side": "new",
+        "wall_ns": 1004458
+      },
+      {
+        "cpu_ns": 27455000,
+        "input": "synthetic:640samples",
+        "order": 17,
+        "side": "old",
+        "wall_ns": 27480917
+      },
+      {
+        "cpu_ns": 27372000,
+        "input": "synthetic:640samples",
+        "order": 18,
+        "side": "old",
+        "wall_ns": 27389291
+      },
+      {
+        "cpu_ns": 1006000,
+        "input": "synthetic:640samples",
+        "order": 19,
+        "side": "new",
+        "wall_ns": 1005292
+      },
+      {
+        "cpu_ns": 1014000,
+        "input": "synthetic:640samples",
+        "order": 20,
+        "side": "new",
+        "wall_ns": 1023125
+      },
+      {
+        "cpu_ns": 27444000,
+        "input": "synthetic:640samples",
+        "order": 21,
+        "side": "old",
+        "wall_ns": 27465959
+      },
+      {
+        "cpu_ns": 27401000,
+        "input": "synthetic:640samples",
+        "order": 22,
+        "side": "old",
+        "wall_ns": 27435459
+      },
+      {
+        "cpu_ns": 1007000,
+        "input": "synthetic:640samples",
+        "order": 23,
+        "side": "new",
+        "wall_ns": 1007500
+      },
+      {
+        "cpu_ns": 1014000,
+        "input": "synthetic:640samples",
+        "order": 24,
+        "side": "new",
+        "wall_ns": 1017917
+      },
+      {
+        "cpu_ns": 27533000,
+        "input": "synthetic:640samples",
+        "order": 25,
+        "side": "old",
+        "wall_ns": 27591833
+      },
+      {
+        "cpu_ns": 27599000,
+        "input": "synthetic:640samples",
+        "order": 26,
+        "side": "old",
+        "wall_ns": 27717708
+      },
+      {
+        "cpu_ns": 1017000,
+        "input": "synthetic:640samples",
+        "order": 27,
+        "side": "new",
+        "wall_ns": 1016375
+      },
+      {
+        "cpu_ns": 27451000,
+        "input": "synthetic:640samples",
+        "order": 28,
+        "side": "old",
+        "wall_ns": 27487250
+      },
+      {
+        "cpu_ns": 1001000,
+        "input": "synthetic:640samples",
+        "order": 29,
+        "side": "new",
+        "wall_ns": 1000209
+      },
+      {
+        "cpu_ns": 1001000,
+        "input": "synthetic:640samples",
+        "order": 30,
+        "side": "new",
+        "wall_ns": 1001125
+      },
+      {
+        "cpu_ns": 27469000,
+        "input": "synthetic:640samples",
+        "order": 31,
+        "side": "old",
+        "wall_ns": 27555083
+      },
+      {
+        "cpu_ns": 1006000,
+        "input": "synthetic:640samples",
+        "order": 32,
+        "side": "new",
+        "wall_ns": 1004958
+      },
+      {
+        "cpu_ns": 27382000,
+        "input": "synthetic:640samples",
+        "order": 33,
+        "side": "old",
+        "wall_ns": 27404042
+      },
+      {
+        "cpu_ns": 27464000,
+        "input": "synthetic:640samples",
+        "order": 34,
+        "side": "old",
+        "wall_ns": 27492959
+      },
+      {
+        "cpu_ns": 1009000,
+        "input": "synthetic:640samples",
+        "order": 35,
+        "side": "new",
+        "wall_ns": 1008041
+      },
+      {
+        "cpu_ns": 27533000,
+        "input": "synthetic:640samples",
+        "order": 36,
+        "side": "old",
+        "wall_ns": 27600334
+      },
+      {
+        "cpu_ns": 1008000,
+        "input": "synthetic:640samples",
+        "order": 37,
+        "side": "new",
+        "wall_ns": 1007459
+      },
+      {
+        "cpu_ns": 1019000,
+        "input": "synthetic:640samples",
+        "order": 38,
+        "side": "new",
+        "wall_ns": 1017833
+      },
+      {
+        "cpu_ns": 27448000,
+        "input": "synthetic:640samples",
+        "order": 39,
+        "side": "old",
+        "wall_ns": 27479916
+      }
+    ],
+    "schema_version": 1
+  },
+  "label": "C02-hdr-synthetic-640",
+  "meta": {
+    "claim": "C02 original synthetic form (3 exposures, 160/640 samples)",
+    "max_abs_curve_diff": 2.3934187964869125e-12,
+    "tolerance": 1e-6
+  },
+  "summary": {
+    "ci_excludes_1": true,
+    "contended": false,
+    "cpu_speedup_geomean": {
+      "ci_hi": 27.291261287108835,
+      "ci_lo": 27.08497604678187,
+      "point": 27.258689175769607
+    },
+    "direction": "faster",
+    "inputs": 1,
+    "load_after": 4.62,
+    "load_before": 4.77,
+    "logical_cores": 12,
+    "publishable": true,
+    "wall_speedup_geomean": {
+      "ci_hi": 27.35781423823785,
+      "ci_lo": 27.09091617080509,
+      "point": 27.288821682963903
+    }
+  }
+}

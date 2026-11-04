@@ -1,0 +1,419 @@
+{
+  "craft_bench_report": {
+    "aggregate": {
+      "cpu": {
+        "ci_hi": 0.06233960151182866,
+        "ci_lo": 0.06161775631500743,
+        "point": 0.06195267374697224
+      },
+      "inputs": 1,
+      "wall": {
+        "ci_hi": 0.062232963079212646,
+        "ci_lo": 0.06151182378082973,
+        "point": 0.06183736519287229
+      }
+    },
+    "config": {
+      "cpu_time": "process",
+      "output_checked": true,
+      "requested_repetitions": 20,
+      "resamples": 2000,
+      "runs_per_side": 20,
+      "seed": 12648430,
+      "warmup_runs": 2
+    },
+    "contended": false,
+    "fingerprint": {
+      "arch": "aarch64",
+      "cpu_model": "Apple M6",
+      "date": "2026-11-04T23:19:38+00:00",
+      "debug_assertions": false,
+      "kernel": "Darwin 27.0.0",
+      "logical_cores": 12,
+      "opt_level": "3",
+      "os": "macos",
+      "physical_cores": 12,
+      "profile": "release",
+      "ram_bytes": 34359738368,
+      "rustc": "rustc 1.99.0 (b940084d7 2026-09-28) (Homebrew)"
+    },
+    "guard": {
+      "contended": false,
+      "load_after": 4.31,
+      "load_before": 4.31,
+      "load_threshold": 6.0,
+      "logical_cores": 12,
+      "max_load_per_core": 0.5,
+      "reasons": [],
+      "throttle_after": {
+        "speed_limit_pct": null,
+        "throttle_count": null
+      },
+      "throttle_before": {
+        "speed_limit_pct": null,
+        "throttle_count": null
+      }
+    },
+    "inputs": [
+      {
+        "cpu": {
+          "new": {
+            "mad_ns": 3000.0,
+            "max_ns": 674000.0,
+            "median_ns": 665000.0,
+            "min_ns": 654000.0,
+            "n": 20
+          },
+          "old": {
+            "mad_ns": 35500.0,
+            "max_ns": 10940000.0,
+            "median_ns": 10734000.0,
+            "min_ns": 10647000.0,
+            "n": 20
+          },
+          "ratio": {
+            "ci_hi": 0.06233960151182866,
+            "ci_lo": 0.06161775631500743,
+            "point": 0.06195267374697224
+          }
+        },
+        "name": "synthetic:1M f32",
+        "wall": {
+          "new": {
+            "mad_ns": 3874.5,
+            "max_ns": 681834.0,
+            "median_ns": 664771.0,
+            "min_ns": 653625.0,
+            "n": 20
+          },
+          "old": {
+            "mad_ns": 35083.5,
+            "max_ns": 11028458.0,
+            "median_ns": 10750312.5,
+            "min_ns": 10657917.0,
+            "n": 20
+          },
+          "ratio": {
+            "ci_hi": 0.062232963079212646,
+            "ci_lo": 0.061511823780829734,
+            "point": 0.0618373651928723
+          }
+        }
+      }
+    ],
+    "name": "median_f32 1M synthetic: sort (vendored) vs select",
+    "publishable": true,
+    "revs": {
+      "new": "03f2995df4605477bd5a276baeded1ee29239b09",
+      "old": "327c4cc82e737a3e0af7c147a477126d77525495"
+    },
+    "runs": [
+      {
+        "cpu_ns": 10858000,
+        "input": "synthetic:1M f32",
+        "order": 0,
+        "side": "old",
+        "wall_ns": 10871208
+      },
+      {
+        "cpu_ns": 668000,
+        "input": "synthetic:1M f32",
+        "order": 1,
+        "side": "new",
+        "wall_ns": 667791
+      },
+      {
+        "cpu_ns": 655000,
+        "input": "synthetic:1M f32",
+        "order": 2,
+        "side": "new",
+        "wall_ns": 654708
+      },
+      {
+        "cpu_ns": 10830000,
+        "input": "synthetic:1M f32",
+        "order": 3,
+        "side": "old",
+        "wall_ns": 10845334
+      },
+      {
+        "cpu_ns": 665000,
+        "input": "synthetic:1M f32",
+        "order": 4,
+        "side": "new",
+        "wall_ns": 664792
+      },
+      {
+        "cpu_ns": 10843000,
+        "input": "synthetic:1M f32",
+        "order": 5,
+        "side": "old",
+        "wall_ns": 10854750
+      },
+      {
+        "cpu_ns": 10769000,
+        "input": "synthetic:1M f32",
+        "order": 6,
+        "side": "old",
+        "wall_ns": 10779875
+      },
+      {
+        "cpu_ns": 664000,
+        "input": "synthetic:1M f32",
+        "order": 7,
+        "side": "new",
+        "wall_ns": 663958
+      },
+      {
+        "cpu_ns": 661000,
+        "input": "synthetic:1M f32",
+        "order": 8,
+        "side": "new",
+        "wall_ns": 660500
+      },
+      {
+        "cpu_ns": 10768000,
+        "input": "synthetic:1M f32",
+        "order": 9,
+        "side": "old",
+        "wall_ns": 10780166
+      },
+      {
+        "cpu_ns": 10940000,
+        "input": "synthetic:1M f32",
+        "order": 10,
+        "side": "old",
+        "wall_ns": 11028458
+      },
+      {
+        "cpu_ns": 671000,
+        "input": "synthetic:1M f32",
+        "order": 11,
+        "side": "new",
+        "wall_ns": 671208
+      },
+      {
+        "cpu_ns": 10762000,
+        "input": "synthetic:1M f32",
+        "order": 12,
+        "side": "old",
+        "wall_ns": 10777375
+      },
+      {
+        "cpu_ns": 668000,
+        "input": "synthetic:1M f32",
+        "order": 13,
+        "side": "new",
+        "wall_ns": 668583
+      },
+      {
+        "cpu_ns": 654000,
+        "input": "synthetic:1M f32",
+        "order": 14,
+        "side": "new",
+        "wall_ns": 653625
+      },
+      {
+        "cpu_ns": 10748000,
+        "input": "synthetic:1M f32",
+        "order": 15,
+        "side": "old",
+        "wall_ns": 10758667
+      },
+      {
+        "cpu_ns": 665000,
+        "input": "synthetic:1M f32",
+        "order": 16,
+        "side": "new",
+        "wall_ns": 664958
+      },
+      {
+        "cpu_ns": 10688000,
+        "input": "synthetic:1M f32",
+        "order": 17,
+        "side": "old",
+        "wall_ns": 10701375
+      },
+      {
+        "cpu_ns": 10698000,
+        "input": "synthetic:1M f32",
+        "order": 18,
+        "side": "old",
+        "wall_ns": 10713208
+      },
+      {
+        "cpu_ns": 663000,
+        "input": "synthetic:1M f32",
+        "order": 19,
+        "side": "new",
+        "wall_ns": 661875
+      },
+      {
+        "cpu_ns": 654000,
+        "input": "synthetic:1M f32",
+        "order": 20,
+        "side": "new",
+        "wall_ns": 654125
+      },
+      {
+        "cpu_ns": 10731000,
+        "input": "synthetic:1M f32",
+        "order": 21,
+        "side": "old",
+        "wall_ns": 10741958
+      },
+      {
+        "cpu_ns": 10768000,
+        "input": "synthetic:1M f32",
+        "order": 22,
+        "side": "old",
+        "wall_ns": 10825791
+      },
+      {
+        "cpu_ns": 674000,
+        "input": "synthetic:1M f32",
+        "order": 23,
+        "side": "new",
+        "wall_ns": 672875
+      },
+      {
+        "cpu_ns": 671000,
+        "input": "synthetic:1M f32",
+        "order": 24,
+        "side": "new",
+        "wall_ns": 673583
+      },
+      {
+        "cpu_ns": 10659000,
+        "input": "synthetic:1M f32",
+        "order": 25,
+        "side": "old",
+        "wall_ns": 10670875
+      },
+      {
+        "cpu_ns": 10717000,
+        "input": "synthetic:1M f32",
+        "order": 26,
+        "side": "old",
+        "wall_ns": 10735208
+      },
+      {
+        "cpu_ns": 663000,
+        "input": "synthetic:1M f32",
+        "order": 27,
+        "side": "new",
+        "wall_ns": 663000
+      },
+      {
+        "cpu_ns": 10705000,
+        "input": "synthetic:1M f32",
+        "order": 28,
+        "side": "old",
+        "wall_ns": 10717250
+      },
+      {
+        "cpu_ns": 665000,
+        "input": "synthetic:1M f32",
+        "order": 29,
+        "side": "new",
+        "wall_ns": 664750
+      },
+      {
+        "cpu_ns": 656000,
+        "input": "synthetic:1M f32",
+        "order": 30,
+        "side": "new",
+        "wall_ns": 656708
+      },
+      {
+        "cpu_ns": 10647000,
+        "input": "synthetic:1M f32",
+        "order": 31,
+        "side": "old",
+        "wall_ns": 10657917
+      },
+      {
+        "cpu_ns": 663000,
+        "input": "synthetic:1M f32",
+        "order": 32,
+        "side": "new",
+        "wall_ns": 663125
+      },
+      {
+        "cpu_ns": 10677000,
+        "input": "synthetic:1M f32",
+        "order": 33,
+        "side": "old",
+        "wall_ns": 10692125
+      },
+      {
+        "cpu_ns": 10697000,
+        "input": "synthetic:1M f32",
+        "order": 34,
+        "side": "old",
+        "wall_ns": 10740625
+      },
+      {
+        "cpu_ns": 668000,
+        "input": "synthetic:1M f32",
+        "order": 35,
+        "side": "new",
+        "wall_ns": 668083
+      },
+      {
+        "cpu_ns": 10737000,
+        "input": "synthetic:1M f32",
+        "order": 36,
+        "side": "old",
+        "wall_ns": 10771375
+      },
+      {
+        "cpu_ns": 668000,
+        "input": "synthetic:1M f32",
+        "order": 37,
+        "side": "new",
+        "wall_ns": 668708
+      },
+      {
+        "cpu_ns": 674000,
+        "input": "synthetic:1M f32",
+        "order": 38,
+        "side": "new",
+        "wall_ns": 681834
+      },
+      {
+        "cpu_ns": 10714000,
+        "input": "synthetic:1M f32",
+        "order": 39,
+        "side": "old",
+        "wall_ns": 10724792
+      }
+    ],
+    "schema_version": 1
+  },
+  "label": "C03-median-synthetic-1M",
+  "meta": {
+    "claim": "C03 original criterion form",
+    "note": "both arms include the Vec clone; OLD vendored from crates/algo/benches/robust.rs@d61722faf"
+  },
+  "summary": {
+    "ci_excludes_1": true,
+    "contended": false,
+    "cpu_speedup_geomean": {
+      "ci_hi": 16.22908816880181,
+      "ci_lo": 16.04116766467066,
+      "point": 16.141353383458647
+    },
+    "direction": "faster",
+    "inputs": 1,
+    "load_after": 4.31,
+    "load_before": 4.31,
+    "logical_cores": 12,
+    "publishable": true,
+    "wall_speedup_geomean": {
+      "ci_hi": 16.257037078969717,
+      "ci_lo": 16.068654785521932,
+      "point": 16.171452274542663
+    }
+  }
+}
